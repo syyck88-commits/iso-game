@@ -1,0 +1,83 @@
+
+import React from 'react';
+
+interface TopBarProps {
+    money: number;
+    health: number;
+    wave: number;
+    nextWaveType?: string;
+    debugMode: boolean;
+    isPaused: boolean;
+    timeScale: number;
+    onRestart: () => void;
+    onPause: () => void;
+    onTimeScale: () => void;
+    onDebugToggle: () => void;
+}
+
+export const TopBar: React.FC<TopBarProps> = ({
+    money, health, wave, nextWaveType, debugMode, isPaused, timeScale,
+    onRestart, onPause, onTimeScale, onDebugToggle
+}) => {
+    return (
+        <div className="absolute top-4 left-4 right-4 flex justify-between items-start pointer-events-none z-20">
+            <div className="bg-slate-900/90 backdrop-blur text-white p-4 rounded-xl shadow-2xl border border-slate-700 pointer-events-auto flex gap-6 items-center">
+                <div>
+                    <h1 className="text-2xl font-black italic text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-amber-600">ISODEFEND</h1>
+                    <p className="text-xs text-slate-400 tracking-widest">V3.5 ENGINE</p>
+                </div>
+                <div className="h-8 w-px bg-slate-700"></div>
+                <div className="flex flex-col">
+                    <span className="text-slate-400 text-xs uppercase font-bold">Credits</span>
+                    <span className={`text-2xl font-mono ${debugMode ? 'text-yellow-400' : 'text-emerald-400'}`}>
+                        {debugMode ? '∞' : '$' + money}
+                    </span>
+                </div>
+                <div className="flex flex-col">
+                    <span className="text-slate-400 text-xs uppercase font-bold">Integrity</span>
+                    <span className="text-2xl font-mono text-rose-400">{health}</span>
+                </div>
+                <div className="flex flex-col">
+                    <span className="text-slate-400 text-xs uppercase font-bold">Wave</span>
+                    <div className="flex items-baseline gap-2">
+                         <span className="text-2xl font-mono text-blue-400">{wave}</span>
+                         {nextWaveType && (
+                             <span className="text-[10px] text-slate-500 bg-slate-800 px-1 rounded uppercase tracking-wider">
+                                Next: {nextWaveType.replace('BOSS_', '⚠️ ')}
+                             </span>
+                         )}
+                    </div>
+                </div>
+                <div className="h-8 w-px bg-slate-700"></div>
+                <button 
+                    onClick={onRestart}
+                    className="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold py-2 px-3 rounded border border-slate-600 transition-colors"
+                >
+                    NEW MAP
+                </button>
+                
+                <div className="flex gap-2">
+                    <button onClick={onPause} className={`w-8 h-8 flex items-center justify-center rounded border ${isPaused ? 'bg-amber-600 border-amber-400 text-white' : 'bg-slate-800 border-slate-600 text-slate-300'}`}>
+                        {isPaused ? '▶' : '⏸'}
+                    </button>
+                    <button onClick={onTimeScale} className={`w-8 h-8 flex items-center justify-center rounded border ${timeScale > 1 ? 'bg-blue-600 border-blue-400 text-white' : 'bg-slate-800 border-slate-600 text-slate-300'}`}>
+                        ⏩
+                    </button>
+                </div>
+            </div>
+            
+            {/* DEBUG TOGGLE */}
+            <div className="pointer-events-auto">
+                 <label className="flex items-center gap-2 bg-slate-900/90 text-xs text-slate-400 p-2 rounded border border-slate-700 cursor-pointer hover:bg-slate-800">
+                     <input 
+                        type="checkbox" 
+                        checked={debugMode} 
+                        onChange={onDebugToggle} 
+                        className="rounded bg-slate-700 border-slate-600 text-yellow-500 focus:ring-0"
+                     />
+                     <span>DEBUG MODE</span>
+                 </label>
+            </div>
+        </div>
+    );
+};

@@ -1,0 +1,5 @@
+{
+  "name": "IsoDefend Engine",
+  "description": "A high-performance HTML5 Canvas isometric tower defense engine featuring a 20x20 logical grid, true isometric projection, depth sorting, and interactive game loop.",
+  "requestFramePermissions": []
+}
