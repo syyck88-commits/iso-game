@@ -1,5 +1,3 @@
-
-
 import { EnemyVariant, Vector2, ParticleBehavior } from '../../../types';
 import { BossEnemy } from '../BossEnemy';
 import { GameEngine } from '../../GameEngine';

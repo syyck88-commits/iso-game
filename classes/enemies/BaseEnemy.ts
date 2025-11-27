@@ -1,4 +1,5 @@
-import { EntityType, Vector2, EnemyVariant } from '../../types';
+
+import { EntityType, Vector2, EnemyVariant, TILE_WIDTH, TILE_HEIGHT } from '../../types';
 import { BaseEntity, generateId } from '../BaseEntity';
 import { GameEngine } from '../GameEngine';
 
@@ -88,8 +89,25 @@ export abstract class BaseEnemy extends BaseEntity {
         this.gridPos.x += (dx / dist) * moveStep;
         this.gridPos.y += (dy / dist) * moveStep;
         
-        // Face movement direction roughly (for rendering rotation if needed)
-        // this.rotation = Math.atan2(dy, dx);
+        // Calculate Screen Space Rotation
+        // Iso projection: 
+        // screenX = (gridX - gridY) * (W/2)
+        // screenY = (gridX + gridY) * (H/2)
+        const dirX = (dx / dist);
+        const dirY = (dy / dist);
+        
+        const screenDx = (dirX - dirY) * (TILE_WIDTH / 2);
+        const screenDy = (dirX + dirY) * (TILE_HEIGHT / 2);
+        
+        // Smoothly interpolate angle to prevent snapping
+        const targetRot = Math.atan2(screenDy, screenDx);
+        
+        // Simple angle lerp (optional, but good for corners)
+        let diff = targetRot - this.rotation;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        
+        this.rotation += diff * 0.2; // Smooth turn
       }
     } else {
       // Reached End
@@ -153,24 +171,19 @@ export abstract class BaseEnemy extends BaseEntity {
       if (this.isDying) {
           ctx.translate(pos.x, pos.y);
           ctx.scale(this.scale, this.scale);
-          ctx.rotate(this.rotation);
+          ctx.rotate(this.rotation); // Keep rotation
           ctx.translate(-pos.x, -pos.y);
       }
 
       // Visual indicator for SLOW
       if (!this.isDying && this.slowTimer > 0) {
           ctx.save();
-          ctx.globalCompositeOperation = 'source-atop';
-          ctx.fillStyle = 'rgba(192, 132, 252, 0.3)'; // Purple tint
-          // This composition is tricky with custom draw calls, 
-          // instead we can just draw a "Frost" circle under them or over them
-          ctx.restore();
-          
           // Draw frost aura
           ctx.fillStyle = 'rgba(168, 85, 247, 0.3)';
           ctx.beginPath();
           ctx.ellipse(pos.x, pos.y, 12, 6, 0, 0, Math.PI*2);
           ctx.fill();
+          ctx.restore();
       }
 
       this.drawModel(ctx, pos);

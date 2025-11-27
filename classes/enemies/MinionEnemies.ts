@@ -1,5 +1,4 @@
 
-
 import { EnemyVariant, Vector2, ParticleBehavior } from '../../types';
 import { BaseEnemy } from './BaseEnemy';
 import { GameEngine } from '../GameEngine';
@@ -211,14 +210,19 @@ export class FastEnemy extends BaseEnemy {
     onUpdate(dt: number, engine: GameEngine) {
         // Engine Exhaust Trail
         this.exhaustTimer += dt;
-        if (this.exhaustTimer > 50) {
+        if (this.exhaustTimer > 30) {
             this.exhaustTimer = 0;
             const pos = engine.getScreenPos(this.gridPos.x, this.gridPos.y);
+            
+            // Adjust exhaust to emit behind the jet based on rotation
+            const backX = Math.cos(this.rotation + Math.PI) * 15;
+            const backY = Math.sin(this.rotation + Math.PI) * 15;
+            
             const p = new ParticleEffect(
-                {x: pos.x - 12, y: pos.y}, 
+                {x: pos.x + backX, y: pos.y + backY}, 
                 this.zHeight, 
                 'rgba(251, 146, 60, 0.6)', 
-                {x: -1 - Math.random(), y: 0}, 
+                {x: 0, y: 0}, 
                 0.4, 
                 ParticleBehavior.FLOAT
             );
@@ -243,36 +247,47 @@ export class FastEnemy extends BaseEnemy {
     }
 
     drawModel(ctx: CanvasRenderingContext2D, pos: Vector2) {
-        const time = Date.now();
         const floatY = pos.y - 5; 
-        const zigzagX = Math.sin(time / 100) * 0.1;
-        const tilt = Math.sin(time / 200) * 0.015;
         
-        ctx.translate(zigzagX, 0);
-        ctx.rotate(tilt);
-
-        ctx.fillStyle = '#c2410c'; 
+        // --- ROTATION TRANSFORM ---
+        ctx.save();
+        ctx.translate(pos.x, floatY);
+        ctx.rotate(this.rotation);
+        
+        // Draw centered at (0,0) assuming sprite points RIGHT (0 radians)
+        
+        // Wings
+        ctx.fillStyle = 'rgba(251, 146, 60, 0.6)'; 
         ctx.beginPath();
-        ctx.moveTo(pos.x + 15, floatY); 
-        ctx.lineTo(pos.x - 10, floatY - 8); 
-        ctx.lineTo(pos.x - 5, floatY); 
-        ctx.lineTo(pos.x - 10, floatY + 8); 
-        ctx.closePath();
+        ctx.moveTo(10, 0); 
+        ctx.lineTo(-12, -8); 
+        ctx.lineTo(-12, 8); 
+        ctx.fill();
+        
+        // Body (Fuselage)
+        ctx.fillStyle = '#ea580c'; // Darker Orange
+        ctx.beginPath(); 
+        ctx.moveTo(15, 0); // Nose
+        ctx.lineTo(-10, -5); // Tail Left
+        ctx.lineTo(-8, 0); // Tail Center
+        ctx.lineTo(-10, 5); // Tail Right
+        ctx.closePath(); 
         ctx.fill();
 
-        ctx.fillStyle = '#60a5fa';
+        // Cockpit
+        ctx.fillStyle = '#60a5fa'; // Blue glass
         ctx.beginPath();
-        ctx.ellipse(pos.x + 2, floatY, 4, 2, 0, 0, Math.PI*2);
+        ctx.ellipse(2, 0, 4, 2, 0, 0, Math.PI*2);
         ctx.fill();
 
+        // Engine Glow
         ctx.fillStyle = '#fff';
         ctx.shadowColor = '#f97316';
         ctx.shadowBlur = 10;
-        ctx.fillRect(pos.x - 10, floatY - 2, 4, 4);
+        ctx.fillRect(-11, -1.5, 3, 3);
         ctx.shadowBlur = 0;
-        
-        ctx.rotate(-tilt);
-        ctx.translate(-zigzagX, 0);
+
+        ctx.restore();
     }
 }
 
