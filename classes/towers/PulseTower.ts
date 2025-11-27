@@ -99,9 +99,12 @@ export class PulseTower extends BaseTower {
              if (enemiesInRange.length > 0) {
                   this.forceFire(enemiesInRange[0], engine); // Trigger visual
 
-                  // Apply Damage
+                  // Apply Damage & Slow
                   enemiesInRange.forEach(e => {
                       e.health -= this.damage;
+                      // Apply Slow Effect (2 seconds)
+                      e.applySlow(2000); 
+
                       if (e.health <= 0) this.killCount++;
                       
                       // Hit Effect on Enemy

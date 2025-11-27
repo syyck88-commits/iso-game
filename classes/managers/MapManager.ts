@@ -86,14 +86,51 @@ export class MapManager {
   }
 
   private generateDecorations() {
-    // NOTE: Water and Sand generation disabled by request.
-    // To re-enable, uncomment the previous logic here.
+    // 1. Generate Water Bodies (Lakes/Coast)
+    for(let i=0; i<8; i++) {
+        const cx = Math.floor(Math.random() * GRID_SIZE);
+        const cy = Math.floor(Math.random() * GRID_SIZE);
+        const r = 2 + Math.random() * 3;
+        
+        for(let y=0; y<GRID_SIZE; y++) {
+            for(let x=0; x<GRID_SIZE; x++) {
+                const dx = x - cx;
+                const dy = y - cy;
+                if (dx*dx + dy*dy < r*r) {
+                    if (this.grid[y][x] === 0) {
+                        this.grid[y][x] = 5; // Water
+                    }
+                }
+            }
+        }
+    }
+
+    // 2. Sand Borders (Around water)
+    const tempGrid = this.grid.map(row => [...row]);
+    for(let y=0; y<GRID_SIZE; y++) {
+        for(let x=0; x<GRID_SIZE; x++) {
+            if (this.grid[y][x] === 5) {
+                // Check neighbors
+                for(let dy=-1; dy<=1; dy++) {
+                    for(let dx=-1; dx<=1; dx++) {
+                        const nx = x + dx; 
+                        const ny = y + dy;
+                        if (nx>=0 && nx<GRID_SIZE && ny>=0 && ny<GRID_SIZE) {
+                            if (tempGrid[ny][nx] === 0) {
+                                this.grid[ny][nx] = 6; // Sand
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     // Trees and Rocks (More density)
     for(let i=0; i<50; i++) {
         const rx = Math.floor(Math.random() * GRID_SIZE);
         const ry = Math.floor(Math.random() * GRID_SIZE);
-        if (this.grid[ry][rx] === 0) {
+        if (this.grid[ry][rx] === 0) { // Grass only
             if (Math.random() > 0.4) {
                 this.grid[ry][rx] = 4; // Tree
                 this.engine.entities.push(new Tree(rx, ry));

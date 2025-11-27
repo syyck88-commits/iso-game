@@ -26,6 +26,9 @@ export const TopBar: React.FC<TopBarProps> = ({
     musicVol, sfxVol,
     onRestart, onPause, onTimeScale, onDebugToggle, onAnimDebug, onMusicVolChange, onSfxVolChange
 }) => {
+    // Calculate potential interest (10% capped at 1000)
+    const nextInterest = Math.min(1000, Math.floor(money * 0.10));
+
     return (
         <div className="absolute top-4 left-4 right-4 flex justify-between items-start pointer-events-none z-20">
             <div className="bg-slate-900/90 backdrop-blur text-white p-4 rounded-xl shadow-2xl border border-slate-700 pointer-events-auto flex gap-6 items-center">
@@ -36,9 +39,16 @@ export const TopBar: React.FC<TopBarProps> = ({
                 <div className="h-8 w-px bg-slate-700"></div>
                 <div className="flex flex-col">
                     <span className="text-slate-400 text-xs uppercase font-bold">Credits</span>
-                    <span className={`text-2xl font-mono ${debugMode ? 'text-yellow-400' : 'text-emerald-400'}`}>
-                        {debugMode ? '∞' : '$' + money}
-                    </span>
+                    <div className="flex flex-col leading-none">
+                        <span className={`text-2xl font-mono ${debugMode ? 'text-yellow-400' : 'text-emerald-400'}`}>
+                            {debugMode ? '∞' : '$' + money}
+                        </span>
+                        {!debugMode && nextInterest > 0 && (
+                             <span className="text-[10px] text-emerald-500/80 font-mono tracking-tighter">
+                                (+${nextInterest})
+                             </span>
+                        )}
+                    </div>
                 </div>
                 <div className="flex flex-col">
                     <span className="text-slate-400 text-xs uppercase font-bold">Integrity</span>

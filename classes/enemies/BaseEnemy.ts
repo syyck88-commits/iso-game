@@ -1,5 +1,3 @@
-
-
 import { EntityType, Vector2, EnemyVariant } from '../../types';
 import { BaseEntity, generateId } from '../BaseEntity';
 import { GameEngine } from '../GameEngine';
@@ -23,6 +21,10 @@ export abstract class BaseEnemy extends BaseEntity {
   opacity: number = 1.0;
   scale: number = 1.0;
   rotation: number = 0;
+
+  // Status Effects
+  slowTimer: number = 0;
+  slowFactor: number = 0.5;
 
   constructor(path: Vector2[], waveDifficulty: number, variant: EnemyVariant) {
     super(EntityType.ENEMY_MINION, path[0].x, path[0].y);
@@ -57,6 +59,11 @@ export abstract class BaseEnemy extends BaseEntity {
         return; // Don't move or act if dying
     }
 
+    // Update Status Effects
+    if (this.slowTimer > 0) {
+        this.slowTimer -= dt;
+    }
+
     // 2. Standard Update (Movement & Abilities)
     this.onUpdate(dt, engine); 
 
@@ -67,8 +74,11 @@ export abstract class BaseEnemy extends BaseEntity {
       const dy = target.y - this.gridPos.y;
       const dist = Math.sqrt(dx*dx + dy*dy);
 
-      // Scaled movement speed
-      const moveStep = this.speed * tick;
+      // Scaled movement speed with SLOW factor
+      let currentSpeed = this.speed;
+      if (this.slowTimer > 0) currentSpeed *= this.slowFactor;
+
+      const moveStep = currentSpeed * tick;
 
       if (dist < moveStep) {
         this.gridPos.x = target.x;
@@ -85,6 +95,10 @@ export abstract class BaseEnemy extends BaseEntity {
       // Reached End
       this.onReachEnd(engine);
     }
+  }
+
+  applySlow(durationMs: number) {
+      this.slowTimer = Math.max(this.slowTimer, durationMs);
   }
 
   // Hook for special abilities / Particles
@@ -141,6 +155,22 @@ export abstract class BaseEnemy extends BaseEntity {
           ctx.scale(this.scale, this.scale);
           ctx.rotate(this.rotation);
           ctx.translate(-pos.x, -pos.y);
+      }
+
+      // Visual indicator for SLOW
+      if (!this.isDying && this.slowTimer > 0) {
+          ctx.save();
+          ctx.globalCompositeOperation = 'source-atop';
+          ctx.fillStyle = 'rgba(192, 132, 252, 0.3)'; // Purple tint
+          // This composition is tricky with custom draw calls, 
+          // instead we can just draw a "Frost" circle under them or over them
+          ctx.restore();
+          
+          // Draw frost aura
+          ctx.fillStyle = 'rgba(168, 85, 247, 0.3)';
+          ctx.beginPath();
+          ctx.ellipse(pos.x, pos.y, 12, 6, 0, 0, Math.PI*2);
+          ctx.fill();
       }
 
       this.drawModel(ctx, pos);

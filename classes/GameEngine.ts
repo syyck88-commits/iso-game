@@ -1,6 +1,4 @@
-
-
-import { Vector2, GridPoint, EntityType, GameState, EnemyVariant, ParticleBehavior } from '../types';
+import { Vector2, GridPoint, EntityType, GameState, EnemyVariant, ParticleBehavior, GRID_SIZE } from '../types';
 import { toScreen, toGrid } from '../utils/isoMath';
 import { SoundEngine } from '../utils/sound';
 import { BaseEntity, Tower, Projectile, ParticleEffect, FloatingText, TowerFactory, LaserTower } from './Entities';
@@ -427,6 +425,17 @@ export class GameEngine {
   }
 
   startWave() {
+      // INTEREST MECHANIC
+      // 10% Interest, capped at $1000 per wave
+      const interest = Math.min(1000, Math.floor(this.gameState.money * 0.10));
+      if (interest > 0) {
+          this.gameState.money += interest;
+          this.audio.playGold();
+          // Spawn center screen interest text
+          const centerGrid = { x: GRID_SIZE/2, y: GRID_SIZE/2 };
+          this.addFloatingText(`INTEREST +$${interest}`, centerGrid, '#22c55e', true);
+      }
+
       this.gameState.wave = this.waves.startWave(this.gameState.wave);
       this.audio.playWaveStart(); 
       this.shakeScreen(4); 

@@ -98,8 +98,8 @@ export class RenderManager {
         ctx.drawImage(this.offscreenCanvas, 0, 0);
     }
     
-    // Draw Dynamic Tile Overlay (Animated Water)
-    this.drawDynamicTiles(ctx);
+    // Draw Dynamic Tile Overlay (Animated Water) -> DISABLED for performance
+    // this.drawDynamicTiles(ctx); 
 
     // Draw the tactical path overlay before entities
     this.drawEnemyPath(ctx);
@@ -284,76 +284,14 @@ export class RenderManager {
     }
   }
 
-  // Improved Water Rendering
+  // Improved Water Rendering - DISABLED FOR PERFORMANCE
   private drawDynamicTiles(ctx: CanvasRenderingContext2D) {
-      const time = Date.now();
-      const waveOffset = time / 500;
-      
-      for (let y = 0; y < GRID_SIZE; y++) {
-        for (let x = 0; x < GRID_SIZE; x++) {
-            if (this.engine.map.getTile(x, y) === 5) { // Water
-                const pos = toScreen(x, y, this.offsetX, this.offsetY);
-                const noise = this.tileNoise[y][x];
-                
-                // Bobbing height
-                const bob = Math.sin(waveOffset + noise * 10) * 3;
-                
-                ctx.save();
-                ctx.translate(0, 5 + bob); // Water sits lower than land (depth)
-                
-                // Water Top Surface (Translucent)
-                ctx.fillStyle = 'rgba(6, 182, 212, 0.5)'; // Cyan 500
-                
-                // Create path for top face
-                ctx.beginPath();
-                ctx.moveTo(pos.x, pos.y);
-                ctx.lineTo(pos.x + TILE_WIDTH / 2, pos.y + TILE_HEIGHT / 2);
-                ctx.lineTo(pos.x, pos.y + TILE_HEIGHT);
-                ctx.lineTo(pos.x - TILE_WIDTH / 2, pos.y + TILE_HEIGHT / 2);
-                ctx.closePath();
-                ctx.fill();
-                
-                // Specular Highlights (Reflection)
-                ctx.globalCompositeOperation = 'overlay';
-                ctx.fillStyle = 'rgba(255,255,255,0.3)';
-                const reflectX = pos.x + (noise - 0.5) * 20;
-                const reflectY = pos.y + TILE_HEIGHT/2 + (noise - 0.5) * 10;
-                ctx.beginPath();
-                ctx.ellipse(reflectX, reflectY, 6, 3, 0, 0, Math.PI*2);
-                ctx.fill();
-
-                // Foam at edges (if near land)
-                const foamPhase = Math.sin(waveOffset * 2 + noise * 20);
-                if (foamPhase > 0.7) {
-                    ctx.strokeStyle = 'rgba(255,255,255,0.4)';
-                    ctx.lineWidth = 1;
-                    ctx.beginPath();
-                    ctx.moveTo(pos.x - 10, pos.y + 10);
-                    ctx.lineTo(pos.x + 10, pos.y + 10);
-                    ctx.stroke();
-                }
-
-                ctx.restore();
-            }
-        }
-      }
+      // Empty
   }
 
   private drawTile(ctx: CanvasRenderingContext2D, x: number, y: number, pos: Vector2) {
     const tileType = this.engine.map.getTile(x, y);
     const noise = this.tileNoise[y][x];
-
-    if (tileType === 5) {
-        // Water Logic: Draw the deep floor
-        ctx.fillStyle = '#082f49'; // Very dark blue floor
-        ctx.beginPath();
-        ctx.moveTo(pos.x, pos.y);
-        ctx.lineTo(pos.x + TILE_WIDTH / 2, pos.y + TILE_HEIGHT / 2);
-        ctx.lineTo(pos.x, pos.y + TILE_HEIGHT);
-        ctx.lineTo(pos.x - TILE_WIDTH / 2, pos.y + TILE_HEIGHT / 2);
-        ctx.fill();
-        return; // Water top is drawn in dynamic layer
-    }
 
     // --- 1. DETERMINE COLORS ---
     let topColor: string, leftColor: string, rightColor: string;
@@ -369,6 +307,11 @@ export class RenderManager {
         leftColor = '#334155';
         rightColor = '#1e293b';
         depth = 20; // High rocks
+    } else if (tileType === 5) { // Water (STATIC)
+        topColor = '#06b6d4'; // Cyan 500
+        leftColor = '#0891b2'; // Cyan 600
+        rightColor = '#164e63'; // Cyan 900
+        depth = 4; // Lower than land
     } else if (tileType === 6) { // Sand
         topColor = '#fcd34d'; 
         leftColor = '#d97706';
@@ -445,6 +388,13 @@ export class RenderManager {
             ctx.ellipse(pos.x + ox, pos.y + oy - 1, 3.5, 1.8, 0, 0, Math.PI*2);
             ctx.fill();
         }
+    } else if (tileType === 5) { // Water Specular (Static)
+        ctx.fillStyle = 'rgba(255,255,255,0.2)';
+        const ox = (noise - 0.5) * 20;
+        const oy = (noise - 0.5) * 10 + 10;
+        ctx.beginPath();
+        ctx.ellipse(pos.x + ox, pos.y + oy, 6, 3, 0, 0, Math.PI*2);
+        ctx.fill();
     }
 
     // --- 6. EDGE HIGHLIGHT ---
