@@ -297,28 +297,9 @@ export class RenderManager {
       const path = this.engine.map.enemyPath;
       if (path.length < 2) return;
 
-      const time = Date.now() / 40;
-      
       ctx.save();
-      ctx.strokeStyle = 'rgba(251, 191, 36, 0.4)'; // Amber-ish
-      ctx.lineWidth = 3;
-      ctx.setLineDash([10, 15]);
-      ctx.lineDashOffset = -time;
-      ctx.lineJoin = 'round';
-      ctx.lineCap = 'round';
-
-      ctx.beginPath();
-      for (let i = 0; i < path.length; i++) {
-          const p = path[i];
-          // Center of tile
-          const screenPos = toScreen(p.x + 0.5, p.y + 0.5, this.offsetX, this.offsetY);
-          
-          if (i === 0) ctx.moveTo(screenPos.x, screenPos.y + TILE_HEIGHT/2);
-          else ctx.lineTo(screenPos.x, screenPos.y + TILE_HEIGHT/2);
-      }
-      ctx.stroke();
+      // Draw Start and End Markers ONLY (Line removed per request)
       
-      // Draw Start and End Markers
       if (path.length > 0) {
           const start = path[0];
           const startPos = toScreen(start.x + 0.5, start.y + 0.5, this.offsetX, this.offsetY);
@@ -336,6 +317,7 @@ export class RenderManager {
       this.drawIsoCircle(ctx, endPos, 0.4, 'rgba(239, 68, 68, 0.4)', 'rgba(239, 68, 68, 0.8)');
       
       ctx.fillStyle = '#fff';
+      ctx.textAlign = 'center';
       ctx.fillText("BASE", endPos.x, endPos.y - 10);
 
       ctx.restore();

@@ -1,4 +1,5 @@
 
+
 import React, { useEffect, useRef, useState } from 'react';
 import { GameEngine } from './classes/GameEngine';
 import { EntityType } from './types';
@@ -31,6 +32,11 @@ const App: React.FC = () => {
   const [wave, setWave] = useState(1);
   const [selectedTool, setSelectedTool] = useState<EntityType | null>(null);
   const [selectedTower, setSelectedTower] = useState<Tower | null>(null);
+  
+  // Helper for triggering re-renders on object mutation
+  const [, setTick] = useState(0);
+  const lastSelectedLevelRef = useRef<number>(-1);
+
   const [isGameOver, setIsGameOver] = useState(false);
   const [timeScale, setTimeScale] = useState(1);
   const [isPaused, setIsPaused] = useState(false);
@@ -77,12 +83,26 @@ const App: React.FC = () => {
             const t = eng.entities.find(e => e.id === eng.input.selectedEntityId);
             if (t && t.type.startsWith('TOWER')) {
                 // @ts-ignore
-                setSelectedTower(t); 
+                const tower = t as Tower;
+                setSelectedTower(tower);
+                
+                // Force update if tower level changed (Upgrade happened)
+                if (tower.level !== lastSelectedLevelRef.current) {
+                    lastSelectedLevelRef.current = tower.level;
+                    setTick(t => t + 1); // Triggers re-render to update UI
+                }
             } else {
                 setSelectedTower(null);
+                lastSelectedLevelRef.current = -1;
             }
         } else {
-            setSelectedTower(prev => prev ? null : prev);
+            setSelectedTower(prev => {
+                if (prev) {
+                    lastSelectedLevelRef.current = -1;
+                    return null;
+                }
+                return prev;
+            });
         }
   
         animationFrameRef.current = requestAnimationFrame(loop);
@@ -307,6 +327,7 @@ const App: React.FC = () => {
 
         {selectedTower && (
             <TowerPanel 
+                key={`${selectedTower.id}_${selectedTower.level}`} 
                 tower={selectedTower}
                 money={money}
                 debugMode={debugMode}

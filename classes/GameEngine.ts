@@ -99,11 +99,19 @@ export class GameEngine {
         this.ambientTimer = 0;
     }
 
-    this.entities.forEach(ent => ent.update(dt, this));
+    // Update all entities
+    // IMPORTANT: We iterate a copy or handle removal carefully, but simply iterating is fine
+    // as long as we don't modify the array index structure mid-loop in a breaking way.
+    // For safety with removal, we can iterate normally. removeEntity uses filter which creates new array.
+    // This is computationally O(n) per removal but safe enough for <500 entities.
+    [...this.entities].forEach(ent => ent.update(dt, this));
+    
+    // Update particles
     this.particles.forEach(p => p.update(dt, this));
     
-    // Simple GC
-    this.entities = this.entities.filter(e => e.type === EntityType.TOWER_BASIC || e.type.startsWith('TOWER') || e.type === EntityType.TREE || (e as any).health === undefined || (e as any).health > 0 || (e as any).isDying);
+    // Particle GC: Only remove dead particles. 
+    // Entities manage their own lifecycle via removeEntity(), so we DO NOT filter them here based on health.
+    // Doing so would delete enemies before they can play their death animation.
     this.particles = this.particles.filter(p => p.life > 0);
   }
 

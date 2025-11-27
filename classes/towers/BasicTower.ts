@@ -33,7 +33,7 @@ export class BasicTower extends BaseTower {
         
         if (this.cooldown > 0) this.cooldown -= tick;
 
-        // Spin Logic
+        // "Spin" is now energy pulsation
         this.barrelAngle += this.spinSpeed * tick;
         this.spinSpeed *= Math.pow(0.95, tick); // Friction
 
@@ -57,12 +57,12 @@ export class BasicTower extends BaseTower {
                 const screenT = engine.getScreenPos(bestTarget.gridPos.x, bestTarget.gridPos.y);
                 const screenS = engine.getScreenPos(this.gridPos.x, this.gridPos.y);
                 
-                const pivotY = 25; // Minigun sits lower
+                const pivotY = 30; 
                 const targetCenterY = 15;
 
                 this.rotation = Math.atan2((screenT.y - targetCenterY) - (screenS.y - pivotY), screenT.x - screenS.x);
 
-                // Spin Up
+                // Energy Charge Up
                 this.spinSpeed = Math.min(1.0, this.spinSpeed + 0.1 * tick);
 
                 // Fire
@@ -72,17 +72,11 @@ export class BasicTower extends BaseTower {
                     this.recoil = 5;
                     this.cooldown = this.maxCooldown;
 
-                    // Effects
+                    // Effects: Sleek energy sparks
                     const pos = engine.getScreenPos(this.gridPos.x, this.gridPos.y);
-                    const shellVel = {
-                        x: -Math.sin(this.rotation) * (2 + Math.random()) + (Math.random()-0.5),
-                        y: Math.cos(this.rotation) * (2 + Math.random()) - 3 
-                    };
-                    engine.particles.push(new Shell(pos, 40, shellVel));
-
-                    const tipX = pos.x + Math.cos(this.rotation) * 35;
-                    const tipY = pos.y - pivotY + Math.sin(this.rotation) * 35;
-                    engine.particles.push(new ParticleEffect({x: tipX, y: tipY}, 0, '#fff', {x:0,y:0}, 0.1, ParticleBehavior.FLOAT));
+                    const tipX = pos.x + Math.cos(this.rotation) * 20;
+                    const tipY = pos.y - pivotY + Math.sin(this.rotation) * 20;
+                    engine.particles.push(new ParticleEffect({x: tipX, y: tipY}, 0, '#60a5fa', {x:0,y:0}, 0.2, ParticleBehavior.FLOAT));
                 }
             }
         }
@@ -90,71 +84,117 @@ export class BasicTower extends BaseTower {
 
     drawModel(ctx: CanvasRenderingContext2D, pos: Vector2) {
         const scale = this.constructionScale;
+        const recoil = this.recoil * 0.5; // Reduced recoil movement for sleeker look
         
-        // Shadow
+        // Colors
+        const cGoldDark = '#b45309';
+        const cGoldLight = '#fcd34d';
+        const cEnergy = '#3b82f6';
+        const cEnergyGlow = '#93c5fd';
+
+        // --- SHADOW ---
         ctx.fillStyle = 'rgba(0,0,0,0.4)';
         ctx.beginPath(); ctx.ellipse(pos.x, pos.y, 16 * scale, 8 * scale, 0, 0, Math.PI * 2); ctx.fill();
         
-        // Base Rings
-        for(let i=0; i<this.level; i++) {
-            ctx.strokeStyle = '#3b82f6';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            const r = (18 + i) * scale;
-            ctx.ellipse(pos.x, pos.y - (i*3*scale), r, r * 0.5, 0, 0, Math.PI*2);
-            ctx.stroke();
-        }
-
+        // --- BASE (Rings) ---
         ctx.save();
         ctx.translate(pos.x, pos.y);
         ctx.scale(scale, scale);
 
-        // Tripod
-        ctx.strokeStyle = '#334155';
-        ctx.lineWidth = 3;
-        for(let i=0; i<3; i++) {
-            const angle = (Math.PI * 2 * i) / 3 + (Math.PI/2);
-            ctx.beginPath(); ctx.moveTo(0, -10); ctx.lineTo(Math.cos(angle)*15, Math.sin(angle)*8); ctx.stroke();
-            ctx.fillStyle = '#1e293b'; ctx.beginPath(); ctx.arc(Math.cos(angle)*15, Math.sin(angle)*8, 2, 0, Math.PI*2); ctx.fill();
+        // Level Indicators (Stacked Rings Style)
+        // Scaled alpha so it never completely disappears regardless of level count
+        const totalLevels = Math.max(1, this.level);
+        for(let i=0; i<this.level; i++) {
+             // Calculate alpha based on position in stack (0 to 1)
+             const progress = i / totalLevels;
+             // Fade from 0.9 (bottom) to 0.2 (top)
+             const alpha = 0.9 - (progress * 0.7);
+             
+             ctx.strokeStyle = `rgba(251, 191, 36, ${Math.max(0.1, alpha)})`; // Fading gold
+             ctx.lineWidth = 1;
+             ctx.beginPath();
+             // Base radius 20, growing slightly
+             const r = 20 + (i * 2);
+             // Moving up stack
+             ctx.ellipse(0, -(i * 2), r, r * 0.5, 0, 0, Math.PI*2);
+             ctx.stroke();
         }
 
-        // Base
-        ctx.fillStyle = '#475569'; ctx.fillRect(-6, -15, 12, 10);
+        // Lower Ring Body
+        const gradBase = ctx.createLinearGradient(-15, -10, 15, 0);
+        gradBase.addColorStop(0, cGoldDark);
+        gradBase.addColorStop(0.5, cGoldLight);
+        gradBase.addColorStop(1, cGoldDark);
+        ctx.fillStyle = gradBase;
+        ctx.beginPath(); ctx.ellipse(0, 0, 16, 8, 0, 0, Math.PI*2); ctx.fill();
+        ctx.strokeStyle = '#78350f'; ctx.lineWidth = 1; ctx.stroke();
         
-        // Turret Head
-        ctx.save();
-        ctx.translate(0, -25);
+        // Upper Base Structure (Floating style)
+        ctx.translate(0, -6);
+        ctx.fillStyle = '#451a03'; // Dark center
+        ctx.beginPath(); ctx.ellipse(0, 0, 10, 5, 0, 0, Math.PI*2); ctx.fill();
+
+        // --- TURRET BODY (Egg Shape) ---
+        ctx.translate(0, -18);
         ctx.rotate(this.rotation);
-        
-        ctx.fillStyle = '#15803d'; ctx.fillRect(-10, -8, 8, 16); // Ammo
-        ctx.fillStyle = '#facc15'; ctx.fillRect(-8, -4, 2, 8); // Detail
-        ctx.fillStyle = '#1e293b'; ctx.fillRect(-6, -8, 12, 16); // Body
-        
-        const kick = this.recoil > 0 ? 2 : 0;
-        ctx.save();
-        ctx.translate(8 - kick, 0); 
-        
-        // Barrel
-        ctx.fillStyle = '#334155'; ctx.fillRect(0, -6, 20, 12);
-        const bA = this.barrelAngle;
-        ctx.fillStyle = '#94a3b8';
-        ctx.fillRect(0, Math.sin(bA)*3 - 1, 20, 2);
-        ctx.fillRect(0, Math.sin(bA+2)*3 - 1, 20, 2);
-        ctx.fillRect(0, Math.sin(bA+4)*3 - 1, 20, 2);
-        
-        ctx.fillStyle = '#0f172a'; ctx.fillRect(18, -6, 2, 12); // Muzzle
+        ctx.translate(-recoil, 0); // Recoil moves whole head back
 
-        if (this.recoil > 0) {
-            ctx.translate(22, 0);
-            ctx.fillStyle = '#fef08a';
-            ctx.globalCompositeOperation = 'lighter';
-            ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(20, -5); ctx.lineTo(25, 0); ctx.lineTo(20, 5); ctx.fill();
-            ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(0,0,6,0,Math.PI*2); ctx.fill();
+        // Main Shell (Curved, Protoss-like)
+        const gradShell = ctx.createLinearGradient(-10, -10, 10, 10);
+        gradShell.addColorStop(0, cGoldLight);
+        gradShell.addColorStop(1, cGoldDark);
+        ctx.fillStyle = gradShell;
+        
+        ctx.beginPath();
+        ctx.moveTo(8, 0); // Front tip
+        ctx.bezierCurveTo(4, 12, -12, 12, -14, 0); // Bottom curve back
+        ctx.bezierCurveTo(-12, -12, 4, -12, 8, 0); // Top curve forward
+        ctx.fill();
+        
+        // Detail Lines
+        ctx.strokeStyle = cGoldLight;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(-6, -6); ctx.quadraticCurveTo(0, 0, -6, 6);
+        ctx.stroke();
+
+        // --- ENERGY CORE (The "Barrel") ---
+        // Instead of a long barrel, it's an exposed crystal at the front
+        const pulse = Math.sin(Date.now() / 100) * 0.2 + 0.8;
+        
+        ctx.fillStyle = cEnergy;
+        ctx.shadowColor = cEnergy;
+        ctx.shadowBlur = 10 * pulse;
+        
+        ctx.beginPath();
+        ctx.arc(6, 0, 4, 0, Math.PI*2);
+        ctx.fill();
+        
+        // Core center
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.arc(6, 0, 2, 0, Math.PI*2);
+        ctx.fill();
+        
+        ctx.shadowBlur = 0;
+
+        // Floating bits (Orbitals)
+        if (this.spinSpeed > 0.1) {
+            const orbitTime = Date.now() / 200;
+            ctx.fillStyle = cGoldLight;
+            
+            // Top Orbital
+            const oy1 = Math.sin(orbitTime) * 6;
+            const ox1 = Math.cos(orbitTime) * 2; // Flattened orbit
+            ctx.beginPath(); ctx.arc(-5 + ox1, -8 + oy1, 1.5, 0, Math.PI*2); ctx.fill();
+            
+            // Bottom Orbital
+            const oy2 = Math.sin(orbitTime + Math.PI) * 6;
+            const ox2 = Math.cos(orbitTime + Math.PI) * 2;
+            ctx.beginPath(); ctx.arc(-5 + ox2, 8 + oy2, 1.5, 0, Math.PI*2); ctx.fill();
         }
-        ctx.restore(); // End Barrel
 
-        ctx.fillStyle = '#64748b'; ctx.fillRect(-4, -10, 8, 4); // Sight
-        ctx.restore(); // End Rot
-        ctx.restore(); // End Scale
+        ctx.restore();
+        ctx.restore();
     }
 }

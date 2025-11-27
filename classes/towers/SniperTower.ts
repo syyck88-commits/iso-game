@@ -65,7 +65,7 @@ export class SniperTower extends BaseTower {
                 const screenT = engine.getScreenPos(bestTarget.gridPos.x, bestTarget.gridPos.y);
                 const screenS = engine.getScreenPos(this.gridPos.x, this.gridPos.y);
                 
-                const pivotY = 45;
+                const pivotY = 50; // Higher pivot for this tower
                 const targetCenterY = 15;
                 this.rotation = Math.atan2((screenT.y - targetCenterY) - (screenS.y - pivotY), screenT.x - screenS.x);
                 
@@ -74,10 +74,10 @@ export class SniperTower extends BaseTower {
                 engine.audio.playSniper();
                 
                 // Muzzle Flash
-                const tipX = screenS.x + Math.cos(this.rotation) * 60;
-                const tipY = screenS.y - pivotY + Math.sin(this.rotation) * 60;
+                const tipX = screenS.x + Math.cos(this.rotation) * 40;
+                const tipY = screenS.y - pivotY + Math.sin(this.rotation) * 40;
                 
-                // Railgun discharge particles
+                // Railgun discharge particles (Blue/Cyan)
                 for(let i=0; i<8; i++) {
                    const vel = {
                        x: Math.cos(this.rotation) * (5 + Math.random() * 5),
@@ -89,19 +89,19 @@ export class SniperTower extends BaseTower {
                    ));
                 }
 
-                // Heavy Recoil
-                this.recoil = 12;
+                // Recoil
+                this.recoil = 8;
                 this.cooldown = this.maxCooldown;
                 
-                // Eject large casing (slug sabot)
+                // Energy casing? No, just a spark burst for energy weapons
                 const shellVel = {
                     x: -Math.sin(this.rotation) * 2,
                     y: Math.cos(this.rotation) * 2 - 3 
                 };
-                const shell = new Shell(screenS, 50, shellVel);
-                shell.size = 4; // Bigger shell
-                shell.color = '#334155'; // Dark sabot
-                engine.particles.push(shell);
+                // Small energy residue
+                const residue = new ParticleEffect({x:screenS.x, y:screenS.y - 40}, 50, '#0ea5e9', shellVel, 0.5, ParticleBehavior.PHYSICS);
+                residue.size = 2;
+                engine.particles.push(residue);
             }
         }
     }
@@ -109,123 +109,135 @@ export class SniperTower extends BaseTower {
     spawnVentParticles(engine: GameEngine) {
         const pos = engine.getScreenPos(this.gridPos.x, this.gridPos.y);
         const yOff = 45;
-        // Vent from sides of the barrel
-        const leftX = pos.x + Math.cos(this.rotation + Math.PI/2) * 10;
-        const leftY = pos.y - yOff + Math.sin(this.rotation + Math.PI/2) * 10;
-        
-        const rightX = pos.x + Math.cos(this.rotation - Math.PI/2) * 10;
-        const rightY = pos.y - yOff + Math.sin(this.rotation - Math.PI/2) * 10;
-
-        const p1 = new ParticleEffect({x: leftX, y: leftY}, 50, 'rgba(255,255,255,0.2)', {x:0, y:-1}, 0.8, ParticleBehavior.FLOAT);
-        const p2 = new ParticleEffect({x: rightX, y: rightY}, 50, 'rgba(255,255,255,0.2)', {x:0, y:-1}, 0.8, ParticleBehavior.FLOAT);
+        // Vent energy from the core
+        const p1 = new ParticleEffect({x: pos.x, y: pos.y - yOff}, 50, 'rgba(34, 211, 238, 0.4)', {x:0, y:-1}, 0.5, ParticleBehavior.FLOAT);
         engine.particles.push(p1);
-        engine.particles.push(p2);
     }
 
     drawModel(ctx: CanvasRenderingContext2D, pos: Vector2) {
         const scale = this.constructionScale;
-        const height = 40;
+        const height = 45; // Tall, slender tower
+
+        // Colors
+        const cSilver = '#94a3b8';
+        const cDarkMetal = '#1e293b';
+        const cEnergy = '#06b6d4';
+        const cGlow = '#67e8f9';
 
         // --- SHADOW ---
         ctx.fillStyle = 'rgba(0,0,0,0.4)';
-        ctx.beginPath(); ctx.ellipse(pos.x, pos.y, 20 * scale, 10 * scale, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(pos.x, pos.y, 16 * scale, 8 * scale, 0, 0, Math.PI * 2); ctx.fill();
 
-        // --- BASE (Hydraulic Tripod) ---
-        ctx.fillStyle = '#1e293b';
-        // Legs
-        for(let i=0; i<3; i++) {
-            const angle = (Math.PI*2 * i) / 3;
-            const lx = Math.cos(angle) * 15 * scale;
-            const ly = Math.sin(angle) * 8 * scale;
-            
-            ctx.beginPath();
-            ctx.moveTo(pos.x, pos.y - 10*scale);
-            ctx.lineTo(pos.x + lx, pos.y + ly);
-            ctx.lineWidth = 4;
-            ctx.strokeStyle = '#334155';
-            ctx.stroke();
-            
-            // Feet
-            ctx.beginPath(); ctx.arc(pos.x + lx, pos.y + ly, 3, 0, Math.PI*2); ctx.fill();
+        // --- BASE (Floating Pylons) ---
+        ctx.save();
+        ctx.translate(pos.x, pos.y);
+        ctx.scale(scale, scale);
+
+        // Level Indicators (Stacked Rings Style)
+        const totalLevels = Math.max(1, this.level);
+        for(let i=0; i<this.level; i++) {
+             const progress = i / totalLevels;
+             const alpha = 0.9 - (progress * 0.7);
+
+             ctx.strokeStyle = `rgba(34, 211, 238, ${Math.max(0.1, alpha)})`; // Cyan
+             ctx.lineWidth = 1;
+             ctx.beginPath();
+             const r = 20 + (i * 2);
+             ctx.ellipse(0, -(i*2), r, r * 0.5, 0, 0, Math.PI*2);
+             ctx.stroke();
         }
 
+        // 3 Floating "Feet"
+        ctx.fillStyle = cDarkMetal;
+        for(let i=0; i<3; i++) {
+            const angle = (Math.PI*2 * i) / 3;
+            const lx = Math.cos(angle) * 12;
+            const ly = Math.sin(angle) * 6;
+            
+            ctx.beginPath();
+            ctx.moveTo(lx, ly);
+            ctx.lineTo(lx, ly - 10); // Vertical rise
+            ctx.lineTo(lx*0.5, ly*0.5 - 5); // Connect to center
+            ctx.fill();
+            
+            // Glowing pads
+            ctx.fillStyle = cEnergy;
+            ctx.beginPath(); ctx.arc(lx, ly-10, 1.5, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = cDarkMetal; // Reset
+        }
+        
         // Central Pillar
-        const grad = ctx.createLinearGradient(pos.x - 8, pos.y - height, pos.x + 8, pos.y);
-        grad.addColorStop(0, '#475569'); grad.addColorStop(1, '#0f172a');
-        ctx.fillStyle = grad;
-        ctx.fillRect(pos.x - 8 * scale, pos.y - height * scale, 16 * scale, height * scale);
+        const gradPillar = ctx.createLinearGradient(-4, -height, 4, 0);
+        gradPillar.addColorStop(0, '#cbd5e1'); // Light Silver
+        gradPillar.addColorStop(1, '#475569'); // Darker
+        ctx.fillStyle = gradPillar;
+        ctx.fillRect(-3, -height, 6, height);
         
-        // Tech detail lines
-        ctx.fillStyle = '#22c55e';
-        ctx.fillRect(pos.x - 2*scale, pos.y - 30*scale, 4*scale, 20*scale); // Green strip
-
         // --- TURRET ASSEMBLY ---
-        ctx.save();
-        ctx.translate(pos.x, pos.y - height * scale);
+        ctx.translate(0, -height);
         ctx.rotate(this.rotation);
-        ctx.scale(scale, scale);
         
-        // Apply Recoil
-        const recoilX = -this.recoil;
+        // Apply Recoil (Kick back)
+        const recoilX = -this.recoil * 0.8;
         ctx.translate(recoilX, 0);
 
-        // 1. Main Housing (Rear)
-        ctx.fillStyle = '#334155';
+        // 1. Core Housing (Sleek, elongated)
+        ctx.fillStyle = cSilver;
         ctx.beginPath();
-        ctx.moveTo(-10, -8); ctx.lineTo(15, -8); ctx.lineTo(15, 8); ctx.lineTo(-10, 8);
-        ctx.closePath();
+        ctx.moveTo(10, 0);
+        ctx.bezierCurveTo(5, -6, -15, -6, -20, 0); // Top curve
+        ctx.bezierCurveTo(-15, 6, 5, 6, 10, 0); // Bottom curve
         ctx.fill();
         
-        // 2. Capacitor Banks (Sides)
-        // Charge glow intensity
-        const chargeGlow = this.chargeLevel; // 0 to 1
-        const capColor = `rgba(34, 211, 238, ${0.3 + chargeGlow * 0.7})`; // Cyan glow
+        // Dark accents
+        ctx.fillStyle = cDarkMetal;
+        ctx.beginPath();
+        ctx.moveTo(-10, -2); ctx.lineTo(-18, -2); ctx.lineTo(-18, 2); ctx.lineTo(-10, 2);
+        ctx.fill();
 
-        // Side Tank Left
-        ctx.fillStyle = '#1e293b'; ctx.fillRect(0, -12, 12, 4);
-        ctx.fillStyle = capColor; ctx.fillRect(2, -11, 8 * chargeGlow, 2); 
+        // 2. The "Lance" (Split rails with energy between)
+        // Two long prongs
+        const prongLen = 30;
         
-        // Side Tank Right
-        ctx.fillStyle = '#1e293b'; ctx.fillRect(0, 8, 12, 4);
-        ctx.fillStyle = capColor; ctx.fillRect(2, 9, 8 * chargeGlow, 2);
+        // Top Prong
+        ctx.fillStyle = '#64748b';
+        ctx.beginPath();
+        ctx.moveTo(5, -3); ctx.lineTo(5 + prongLen, -4); ctx.lineTo(5 + prongLen - 5, -1); ctx.lineTo(5, -1);
+        ctx.fill();
+        
+        // Bottom Prong
+        ctx.fillStyle = '#64748b';
+        ctx.beginPath();
+        ctx.moveTo(5, 3); ctx.lineTo(5 + prongLen, 4); ctx.lineTo(5 + prongLen - 5, 1); ctx.lineTo(5, 1);
+        ctx.fill();
 
-        // 3. Rails (Barrel)
-        const barrelLen = 45;
+        // 3. Floating Focus Crystals
+        // These float between the prongs
+        const charge = this.chargeLevel; // 0 to 1
         
-        // Top Rail
-        ctx.fillStyle = '#0f172a'; 
-        ctx.fillRect(15, -6, barrelLen, 3);
-        
-        // Bottom Rail
-        ctx.fillStyle = '#0f172a';
-        ctx.fillRect(15, 3, barrelLen, 3);
-        
-        // Magnetic Core (Between rails)
-        // Pulsates when fully charged
-        let coreAlpha = chargeGlow;
-        if (chargeGlow > 0.9) coreAlpha = 0.8 + Math.sin(Date.now() / 50) * 0.2;
-        
-        ctx.fillStyle = `rgba(34, 211, 238, ${coreAlpha})`;
-        ctx.shadowColor = '#22d3ee';
-        ctx.shadowBlur = coreAlpha * 15;
-        ctx.fillRect(15, -2, barrelLen - 2, 4);
-        ctx.shadowBlur = 0;
-        
-        // Rail Braces
-        ctx.fillStyle = '#475569';
-        ctx.fillRect(35, -7, 4, 14);
-        ctx.fillRect(55, -7, 4, 14);
+        // Energy Beam / Charge
+        if (charge > 0.1) {
+            ctx.fillStyle = `rgba(34, 211, 238, ${charge})`;
+            ctx.shadowColor = cGlow;
+            ctx.shadowBlur = charge * 10;
+            ctx.fillRect(5, -1, prongLen - 8, 2); // Core beam
+            ctx.shadowBlur = 0;
+        }
 
-        // 4. Scope / Sensor
-        ctx.fillStyle = '#0f172a';
-        ctx.fillRect(5, -14, 10, 4); // Stem
-        ctx.fillStyle = '#1e293b';
-        ctx.fillRect(2, -18, 16, 6); // Scope Body
-        
-        // Lens reflection
-        ctx.fillStyle = '#ef4444'; // Red targeting lens
-        ctx.beginPath(); ctx.arc(18, -15, 2, 0, Math.PI*2); ctx.fill();
+        // Focusing Lens at tip
+        ctx.fillStyle = cEnergy;
+        ctx.beginPath();
+        ctx.moveTo(5 + prongLen, 0);
+        ctx.lineTo(5 + prongLen + 4, -2);
+        ctx.lineTo(5 + prongLen + 8, 0);
+        ctx.lineTo(5 + prongLen + 4, 2);
+        ctx.fill();
 
+        // 4. Rear Detail (Counterweight)
+        ctx.fillStyle = cEnergy;
+        ctx.beginPath(); ctx.arc(-20, 0, 2, 0, Math.PI*2); ctx.fill();
+
+        ctx.restore();
         ctx.restore();
     }
 }

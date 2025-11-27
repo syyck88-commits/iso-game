@@ -111,48 +111,65 @@ export class PulseTower extends BaseTower {
         // --- SHADOW ---
         ctx.fillStyle = 'rgba(0,0,0,0.4)';
         ctx.beginPath(); ctx.ellipse(pos.x, pos.y, 20 * scale, 10 * scale, 0, 0, Math.PI * 2); ctx.fill();
+        
+        ctx.save();
+        ctx.translate(pos.x, pos.y);
+        ctx.scale(scale, scale);
+
+        // Level Indicators (Stacked Rings Style)
+        const totalLevels = Math.max(1, this.level);
+        for(let i=0; i<this.level; i++) {
+             const progress = i / totalLevels;
+             const alpha = 0.9 - (progress * 0.7);
+
+             ctx.strokeStyle = `rgba(168, 85, 247, ${Math.max(0.1, alpha)})`; // Purple
+             ctx.lineWidth = 1;
+             ctx.beginPath();
+             const r = 22 + (i * 2);
+             ctx.ellipse(0, -(i*2), r, r * 0.5, 0, 0, Math.PI*2);
+             ctx.stroke();
+        }
 
         // --- INDUSTRIAL BASE ---
         ctx.fillStyle = '#1e1b4b'; // Dark Indigo
         // Base plate
         ctx.beginPath();
-        ctx.moveTo(pos.x - 20*scale, pos.y);
-        ctx.lineTo(pos.x, pos.y + 10*scale);
-        ctx.lineTo(pos.x + 20*scale, pos.y);
-        ctx.lineTo(pos.x, pos.y - 10*scale);
+        ctx.moveTo(-20, 0);
+        ctx.lineTo(0, 10);
+        ctx.lineTo(20, 0);
+        ctx.lineTo(0, -10);
         ctx.fill();
 
         // Base Block
-        const gradBase = ctx.createLinearGradient(pos.x-15, pos.y-20, pos.x+15, pos.y);
+        const gradBase = ctx.createLinearGradient(-15, -20, 15, 0);
         gradBase.addColorStop(0, '#4c1d95');
         gradBase.addColorStop(1, '#1e1b4b');
         ctx.fillStyle = gradBase;
-        ctx.fillRect(pos.x - 12*scale, pos.y - 15*scale, 24*scale, 15*scale);
+        ctx.fillRect(-12, -15, 24, 15);
         
         // --- 4 PYLONS (Containment) ---
         for(let i=0; i<4; i++) {
             const angle = (Math.PI/2 * i) + (Math.PI/4);
-            const px = Math.cos(angle) * 14 * scale;
-            const py = Math.sin(angle) * 8 * scale;
+            const px = Math.cos(angle) * 14;
+            const py = Math.sin(angle) * 8;
             
             // Pylon Base
             ctx.fillStyle = '#581c87';
             ctx.beginPath(); 
-            ctx.ellipse(pos.x + px, pos.y + py, 4*scale, 2*scale, 0, 0, Math.PI*2); 
+            ctx.ellipse(px, py, 4, 2, 0, 0, Math.PI*2); 
             ctx.fill();
             
             // Pylon Shaft
             ctx.fillStyle = '#6b21a8';
-            ctx.fillRect(pos.x + px - 2*scale, pos.y + py - 35*scale, 4*scale, 35*scale);
+            ctx.fillRect(px - 2, py - 35, 4, 35);
             
             // Pylon Tip
             ctx.fillStyle = '#d8b4fe';
-            ctx.fillRect(pos.x + px - 1*scale, pos.y + py - 35*scale, 2*scale, 4*scale);
+            ctx.fillRect(px - 1, py - 35, 2, 4);
         }
 
         // --- FLOATING CORE ---
-        ctx.save();
-        ctx.translate(pos.x, pos.y - 25*scale - bounce);
+        ctx.translate(0, -25 - bounce);
         
         // Scale pulse on fire
         const expansion = this.recoil > 0 ? (this.recoil / 5) : 0;
@@ -198,8 +215,8 @@ export class PulseTower extends BaseTower {
             // Pick a random pylon pos relative to center
             const pIdx = Math.floor(Math.random()*4);
             const pAngle = (Math.PI/2 * pIdx) + (Math.PI/4);
-            const px = Math.cos(pAngle) * 14 * scale;
-            const py = Math.sin(pAngle) * 8 * scale + 10; // Adjust for coordinate space
+            const px = Math.cos(pAngle) * 14;
+            const py = Math.sin(pAngle) * 8 + 35; // Adjust for coordinate space relative to core
             
             ctx.moveTo(0,0);
             const midX = px * 0.5 + (Math.random()-0.5)*10;
@@ -210,6 +227,7 @@ export class PulseTower extends BaseTower {
             ctx.globalCompositeOperation = 'source-over';
         }
 
+        ctx.restore();
         ctx.restore();
     }
 }
