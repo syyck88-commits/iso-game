@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { GameEngine } from './classes/GameEngine';
-import { EntityType } from './types';
+import { EntityType, EnemyVariant } from './types';
 import { Tower } from './classes/Entities';
 
 // Subcomponents
@@ -11,6 +11,72 @@ import { TopBar } from './components/TopBar';
 import { BuildMenu } from './components/BuildMenu';
 import { TowerPanel } from './components/TowerPanel';
 import { GameOver } from './components/GameOver';
+
+// --- NEW ANIMATION DEBUG PANEL ---
+const AnimationPanel: React.FC<{ 
+    onSelect: (variant: string) => void; 
+    onClose: () => void;
+}> = ({ onSelect, onClose }) => {
+    const enemies = Object.values(EnemyVariant);
+    const towers = [
+        EntityType.TOWER_BASIC, 
+        EntityType.TOWER_SNIPER, 
+        EntityType.TOWER_PULSE, 
+        EntityType.TOWER_LASER
+    ];
+
+    return (
+        <div className="absolute inset-0 z-50 pointer-events-none">
+            {/* Top Right Controls */}
+            <div className="absolute top-4 right-4 pointer-events-auto">
+                <button onClick={onClose} className="bg-rose-600 hover:bg-rose-500 text-white font-bold py-2 px-6 rounded-lg shadow-lg border border-rose-400">
+                    EXIT DEBUG MODE
+                </button>
+            </div>
+            
+            {/* Sidebar Selection */}
+            <div className="absolute bottom-10 left-10 p-6 bg-slate-900/90 border border-slate-700 rounded-xl shadow-2xl max-h-[80vh] overflow-y-auto w-80 pointer-events-auto">
+                <h3 className="text-xl font-bold text-white mb-4 border-b border-slate-700 pb-2">Select Entity</h3>
+                
+                <div className="mb-6">
+                    <h4 className="text-xs uppercase text-slate-400 font-bold mb-2">Enemies</h4>
+                    <div className="grid grid-cols-2 gap-2">
+                        {enemies.map(e => (
+                            <button 
+                                key={e} 
+                                onClick={() => onSelect(e)}
+                                className="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs py-2 px-2 rounded border border-slate-600 text-left truncate transition-colors"
+                            >
+                                {e}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
+                <div>
+                    <h4 className="text-xs uppercase text-slate-400 font-bold mb-2">Towers</h4>
+                    <div className="grid grid-cols-2 gap-2">
+                        {towers.map(t => (
+                            <button 
+                                key={t} 
+                                onClick={() => onSelect(t)}
+                                className="bg-indigo-900/50 hover:bg-indigo-800 text-indigo-200 text-xs py-2 px-2 rounded border border-indigo-700/50 text-left truncate transition-colors"
+                            >
+                                {t.replace('TOWER_', '')}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            </div>
+            
+            {/* Center Crosshair for alignment visual */}
+            <div className="absolute inset-0 flex items-center justify-center opacity-30 pointer-events-none">
+                <div className="w-[40px] h-px bg-white"></div>
+                <div className="h-[40px] w-px bg-white absolute"></div>
+            </div>
+        </div>
+    );
+};
 
 const App: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -33,6 +99,10 @@ const App: React.FC = () => {
   const [selectedTool, setSelectedTool] = useState<EntityType | null>(null);
   const [selectedTower, setSelectedTower] = useState<Tower | null>(null);
   
+  // Audio State
+  const [musicVol, setMusicVol] = useState(1.0);
+  const [sfxVol, setSfxVol] = useState(1.0);
+
   // Helper for triggering re-renders on object mutation
   const [, setTick] = useState(0);
   const lastSelectedLevelRef = useRef<number>(-1);
@@ -42,6 +112,9 @@ const App: React.FC = () => {
   const [isPaused, setIsPaused] = useState(false);
   const [debugMode, setDebugMode] = useState(false);
   const [nextWaveType, setNextWaveType] = useState<string>('NORMAL');
+  
+  // View Mode
+  const [viewMode, setViewMode] = useState<'GAME' | 'ANIM_DEBUG'>('GAME');
 
   const addLog = (msg: string) => {
       setStatusLog(prev => {
@@ -73,36 +146,39 @@ const App: React.FC = () => {
         eng.update(safeDt);
         eng.draw();
         
-        setMoney(eng.gameState.money);
-        setHealth(eng.gameState.health);
-        setWave(eng.gameState.wave);
-        setNextWaveType(eng.nextWaveType);
-        setIsGameOver(!eng.gameState.gameActive);
-        
-        if (eng.input.selectedEntityId) {
-            const t = eng.entities.find(e => e.id === eng.input.selectedEntityId);
-            if (t && t.type.startsWith('TOWER')) {
-                // @ts-ignore
-                const tower = t as Tower;
-                setSelectedTower(tower);
-                
-                // Force update if tower level changed (Upgrade happened)
-                if (tower.level !== lastSelectedLevelRef.current) {
-                    lastSelectedLevelRef.current = tower.level;
-                    setTick(t => t + 1); // Triggers re-render to update UI
+        // Only update Game UI state if in Game Mode
+        if (viewMode === 'GAME') {
+            setMoney(eng.gameState.money);
+            setHealth(eng.gameState.health);
+            setWave(eng.gameState.wave);
+            setNextWaveType(eng.nextWaveType);
+            setIsGameOver(!eng.gameState.gameActive);
+            
+            if (eng.input.selectedEntityId) {
+                const t = eng.entities.find(e => e.id === eng.input.selectedEntityId);
+                if (t && t.type.startsWith('TOWER')) {
+                    // @ts-ignore
+                    const tower = t as Tower;
+                    setSelectedTower(tower);
+                    
+                    // Force update if tower level changed (Upgrade happened)
+                    if (tower.level !== lastSelectedLevelRef.current) {
+                        lastSelectedLevelRef.current = tower.level;
+                        setTick(t => t + 1); // Triggers re-render to update UI
+                    }
+                } else {
+                    setSelectedTower(null);
+                    lastSelectedLevelRef.current = -1;
                 }
             } else {
-                setSelectedTower(null);
-                lastSelectedLevelRef.current = -1;
+                setSelectedTower(prev => {
+                    if (prev) {
+                        lastSelectedLevelRef.current = -1;
+                        return null;
+                    }
+                    return prev;
+                });
             }
-        } else {
-            setSelectedTower(prev => {
-                if (prev) {
-                    lastSelectedLevelRef.current = -1;
-                    return null;
-                }
-                return prev;
-            });
         }
   
         animationFrameRef.current = requestAnimationFrame(loop);
@@ -240,11 +316,41 @@ const App: React.FC = () => {
       engineRef.current.toggleDebug();
       setDebugMode(engineRef.current.debugMode);
   }
+  
+  const handleAnimDebugToggle = () => {
+      if (!engineRef.current) return;
+      if (viewMode === 'GAME') {
+          setViewMode('ANIM_DEBUG');
+          engineRef.current.setPreviewMode(true);
+      } else {
+          setViewMode('GAME');
+          engineRef.current.setPreviewMode(false);
+      }
+  }
+  
+  const handlePreviewSelect = (variant: string) => {
+      if (!engineRef.current) return;
+      engineRef.current.spawnPreviewEntity(variant);
+  }
+
+  const handleMusicVolume = (val: number) => {
+      setMusicVol(val);
+      if (engineRef.current) engineRef.current.setMusicVolume(val);
+  };
+
+  const handleSfxVolume = (val: number) => {
+      setSfxVol(val);
+      if (engineRef.current) engineRef.current.setSfxVolume(val);
+  };
 
   // KEYBOARD SHORTCUTS
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
         if (loadingState !== 'READY') return;
+        if (viewMode === 'ANIM_DEBUG') {
+            if (e.code === 'Escape') handleAnimDebugToggle();
+            return;
+        }
 
         // Prevent defaults for game keys
         if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
@@ -291,7 +397,7 @@ const App: React.FC = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [loadingState, selectedTool, selectedTower, timeScale, isPaused]); // Deps for closure state
+  }, [loadingState, selectedTool, selectedTower, timeScale, isPaused, viewMode]); 
 
   return (
     <div className="relative w-full h-full bg-slate-900 select-none font-sans overflow-hidden" onContextMenu={(e) => e.preventDefault()}>
@@ -311,49 +417,62 @@ const App: React.FC = () => {
 
       {loadingState === 'READY' && (
       <>
-        <TopBar 
-            money={money}
-            health={health}
-            wave={wave}
-            nextWaveType={nextWaveType}
-            debugMode={debugMode}
-            isPaused={isPaused}
-            timeScale={timeScale}
-            onRestart={handleRestart}
-            onPause={handlePause}
-            onTimeScale={handleTimeScale}
-            onDebugToggle={handleDebugToggle}
-        />
+        {viewMode === 'ANIM_DEBUG' && (
+            <AnimationPanel onSelect={handlePreviewSelect} onClose={handleAnimDebugToggle} />
+        )}
+      
+        {viewMode === 'GAME' && (
+        <>
+            <TopBar 
+                money={money}
+                health={health}
+                wave={wave}
+                nextWaveType={nextWaveType}
+                debugMode={debugMode}
+                isPaused={isPaused}
+                timeScale={timeScale}
+                musicVol={musicVol}
+                sfxVol={sfxVol}
+                onRestart={handleRestart}
+                onPause={handlePause}
+                onTimeScale={handleTimeScale}
+                onDebugToggle={handleDebugToggle}
+                onAnimDebug={handleAnimDebugToggle}
+                onMusicVolChange={handleMusicVolume}
+                onSfxVolChange={handleSfxVolume}
+            />
 
-        {selectedTower && (
-            <TowerPanel 
-                key={`${selectedTower.id}_${selectedTower.level}`} 
-                tower={selectedTower}
+            {selectedTower && (
+                <TowerPanel 
+                    key={`${selectedTower.id}_${selectedTower.level}`} 
+                    tower={selectedTower}
+                    money={money}
+                    debugMode={debugMode}
+                    onUpgrade={handleUpgrade}
+                    onSell={handleSell}
+                />
+            )}
+
+            <BuildMenu 
+                selectedTool={selectedTool}
                 money={money}
                 debugMode={debugMode}
-                onUpgrade={handleUpgrade}
-                onSell={handleSell}
+                onSelectTool={(t) => handleToolSelect(selectedTool === t ? null : t)}
+                onNextWave={handleNextWave}
             />
-        )}
 
-        <BuildMenu 
-            selectedTool={selectedTool}
-            money={money}
-            debugMode={debugMode}
-            onSelectTool={(t) => handleToolSelect(selectedTool === t ? null : t)}
-            onNextWave={handleNextWave}
-        />
-
-        {isPaused && !isGameOver && (
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-30">
-                <div className="bg-black/50 px-6 py-2 rounded-full text-white font-bold text-xl backdrop-blur-sm border border-white/10">
-                    PAUSED
+            {isPaused && !isGameOver && (
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-30">
+                    <div className="bg-black/50 px-6 py-2 rounded-full text-white font-bold text-xl backdrop-blur-sm border border-white/10">
+                        PAUSED
+                    </div>
                 </div>
-            </div>
-        )}
+            )}
 
-        {isGameOver && (
-            <GameOver wave={wave} onRestart={handleRestart} />
+            {isGameOver && (
+                <GameOver wave={wave} onRestart={handleRestart} />
+            )}
+        </>
         )}
       </>
       )}

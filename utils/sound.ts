@@ -1,4 +1,5 @@
 
+
 import { AudioCore } from './audio/AudioCore';
 import { Instruments } from './audio/Instruments';
 import { Sequencer } from './audio/Sequencer';
@@ -32,9 +33,9 @@ export class SoundEngine {
 
       log("Starting Sound Engine Initialization...");
       
-      // Instruments (7) + SFX (16) = 23 steps
+      // Instruments (7) + SFX (17) = 24 steps
       let completed = 0;
-      const totalSteps = 23;
+      const totalSteps = 24;
       
       const updateProgress = () => {
           completed++;
@@ -66,6 +67,7 @@ export class SoundEngine {
       
       await this.sfx.initStep('cancel', log); updateProgress(); await waitFrame();
       await this.sfx.initStep('plasma', log); updateProgress(); await waitFrame();
+      await this.sfx.initStep('pulse', log); updateProgress(); await waitFrame();
       await this.sfx.initStep('alarm', log); updateProgress(); await waitFrame();
       await this.sfx.initStep('sniper', log); updateProgress(); await waitFrame();
       await this.sfx.initStep('wave_start', log); updateProgress(); await waitFrame();
@@ -87,6 +89,9 @@ export class SoundEngine {
   setMusicState(state: MusicState) {
       this.sequencer.setState(state);
   }
+
+  setMusicVolume(vol: number) { this.core.setMusicVolume(vol); }
+  setSfxVolume(vol: number) { this.core.setSfxVolume(vol); }
 
   playShoot(pitchVar?: number) { this.sfx.shoot(pitchVar); }
   playSniper() { this.sfx.sniper(); }

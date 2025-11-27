@@ -1,3 +1,4 @@
+
 import { EntityType, Vector2 } from '../types';
 import { BaseEntity } from './BaseEntity';
 import { GameEngine } from './GameEngine';
@@ -19,33 +20,44 @@ export class Tree extends BaseEntity {
 
     draw(ctx: CanvasRenderingContext2D, pos: Vector2) {
         const sway = Math.sin((Date.now() / 1000) + this.swayOffset) * 2;
+        const trunkBaseY = pos.y;
         
+        // Shadow
+        ctx.fillStyle = 'rgba(0,0,0,0.3)';
+        ctx.beginPath();
+        ctx.ellipse(pos.x, trunkBaseY, 10, 5, 0, 0, Math.PI*2);
+        ctx.fill();
+
         // Trunk
-        ctx.fillStyle = '#451a03';
-        ctx.fillRect(pos.x - 2, pos.y - 10, 4, 10);
+        ctx.fillStyle = '#451a03'; // Dark Wood
+        ctx.fillRect(pos.x - 2, trunkBaseY - 10, 4, 10);
+        
+        // Stylized Cone Layers (Low Poly Pine)
+        const greenDark = '#14532d';
+        const greenMid = '#166534';
+        const greenLight = '#15803d';
 
-        // Leaves (3 layers)
-        const greenBase = this.variant > 0.5 ? 120 : 140; // Variation in hue
-        
-        ctx.fillStyle = `hsl(${greenBase}, 60%, 35%)`;
-        ctx.beginPath();
-        ctx.arc(pos.x + sway * 0.5, pos.y - 15, 12, 0, Math.PI * 2);
-        ctx.fill();
+        const drawCone = (yOffset: number, width: number, height: number, color: string) => {
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.moveTo(pos.x - width + sway * (yOffset/50), trunkBaseY - yOffset); // Bottom Left
+            ctx.lineTo(pos.x + width + sway * (yOffset/50), trunkBaseY - yOffset); // Bottom Right
+            ctx.lineTo(pos.x + sway * ((yOffset+height)/50), trunkBaseY - yOffset - height); // Top Center
+            ctx.closePath();
+            ctx.fill();
+            
+            // Highlight Side
+            ctx.fillStyle = 'rgba(255,255,255,0.1)';
+            ctx.beginPath();
+            ctx.moveTo(pos.x + sway * ((yOffset+height)/50), trunkBaseY - yOffset - height);
+            ctx.lineTo(pos.x + width + sway * (yOffset/50), trunkBaseY - yOffset);
+            ctx.lineTo(pos.x + sway * (yOffset/50), trunkBaseY - yOffset);
+            ctx.fill();
+        };
 
-        ctx.fillStyle = `hsl(${greenBase + 10}, 60%, 40%)`;
-        ctx.beginPath();
-        ctx.arc(pos.x + sway * 0.7, pos.y - 22, 10, 0, Math.PI * 2);
-        ctx.fill();
-        
-        ctx.fillStyle = `hsl(${greenBase + 20}, 70%, 45%)`;
-        ctx.beginPath();
-        ctx.arc(pos.x + sway, pos.y - 28, 7, 0, Math.PI * 2);
-        ctx.fill();
-        
-        // Shadow (simple)
-        ctx.fillStyle = 'rgba(0,0,0,0.2)';
-        ctx.beginPath();
-        ctx.ellipse(pos.x, pos.y, 8, 4, 0, 0, Math.PI*2);
-        ctx.fill();
+        // Stacked cones
+        drawCone(10, 12, 15, greenDark);
+        drawCone(20, 10, 15, greenMid);
+        drawCone(30, 8, 15, greenLight);
     }
 }

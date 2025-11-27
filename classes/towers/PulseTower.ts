@@ -4,6 +4,7 @@ import { EntityType, Vector2, ParticleBehavior } from '../../types';
 import { BaseTower } from './BaseTower';
 import { GameEngine } from '../GameEngine';
 import { ParticleEffect } from '../Particle';
+import { BaseEnemy } from '../enemies/BaseEnemy';
 
 export class PulseTower extends BaseTower {
     // Visual State
@@ -28,12 +29,38 @@ export class PulseTower extends BaseTower {
         this.range += 0.5;
         this.maxCooldown = Math.max(5, Math.floor(this.maxCooldown * 0.85));
     }
+    
+    forceFire(target: BaseEnemy, engine: GameEngine) {
+        // AoE Trigger
+        this.cooldown = this.maxCooldown;
+        this.recoil = 20; 
+        engine.audio.playPulse();
+
+        const center = engine.getScreenPos(this.gridPos.x, this.gridPos.y);
+        
+        // Effects
+        const wave = new ParticleEffect(center, 5, '#a855f7', {x:0, y:0}, 0.6, ParticleBehavior.FLOAT, 'SHOCKWAVE');
+        wave.size = 5; 
+        
+        const waveInner = new ParticleEffect(center, 5, '#e9d5ff', {x:0, y:0}, 0.3, ParticleBehavior.FLOAT, 'SHOCKWAVE');
+        waveInner.size = 5; 
+
+        const flash = new ParticleEffect(center, 45, '#fff', {x:0, y:0}, 0.2, ParticleBehavior.FLOAT, 'FLASH');
+        flash.size = 50;
+
+        if (engine.previewMode) {
+             engine.previewParticles.push(wave, waveInner, flash);
+        } else {
+             engine.particles.push(wave, waveInner, flash);
+        }
+    }
 
     onTowerUpdate(dt: number, engine: GameEngine) {
         const tick = dt / 16.0;
 
-        // Animation
-        this.spinAngle += (0.05 + (1 - (this.cooldown/this.maxCooldown)) * 0.2) * tick;
+        // Animation: Spin faster as we charge up
+        const chargePct = 1 - (this.cooldown / this.maxCooldown);
+        this.spinAngle += (0.1 + chargePct * 0.4) * tick;
         this.coreHeight += 0.1 * tick;
 
         if (this.cooldown > 0) this.cooldown -= tick;
@@ -59,44 +86,36 @@ export class PulseTower extends BaseTower {
         }
 
         if (this.cooldown <= 0) {
+             // Basic firing logic: Only fire if rotated roughly towards a target? 
+             // Pulse tower is omni-directional, so we skip rotation checks.
+             
+             // Dead check filtered in BaseTower, but we do range check here manually for AoE
              const enemies = engine.enemies;
-             const enemiesInRange = enemies.filter(e => this.getDist(e.gridPos) <= this.range);
+             const enemiesInRange = enemies.filter(e => {
+                 if (e.health <= 0 || e.isDying) return false;
+                 return this.getDist(e.gridPos) <= this.range;
+             });
 
              if (enemiesInRange.length > 0) {
-                  this.cooldown = this.maxCooldown;
-                  this.recoil = 15;
-                  engine.audio.playPulse();
+                  this.forceFire(enemiesInRange[0], engine); // Trigger visual
 
-                  const center = engine.getScreenPos(this.gridPos.x, this.gridPos.y);
-                  
-                  // 1. Ground Shockwave Ring
-                  for(let i=0; i<24; i++) {
-                      const ang = (Math.PI * 2 * i) / 24;
-                      const vel = { x: Math.cos(ang) * 6, y: Math.sin(ang) * 3 }; 
-                      const p = new ParticleEffect(center, 5, '#c084fc', vel, 0.5);
-                      p.size = 3;
-                      engine.particles.push(p);
-                  }
-
-                  // 2. Vertical Energy Discharge
-                  for(let i=0; i<8; i++) {
-                      const p = new ParticleEffect(
-                          center, 
-                          30, 
-                          '#fff', 
-                          {x: (Math.random()-0.5)*4, y: -Math.random()*5}, 
-                          0.4, 
-                          ParticleBehavior.FLOAT
-                      );
-                      engine.particles.push(p);
-                  }
-
+                  // Apply Damage
                   enemiesInRange.forEach(e => {
                       e.health -= this.damage;
                       if (e.health <= 0) this.killCount++;
-                      engine.spawnHitEffect(e.gridPos);
-                      // Visual link
-                      // engine.spawnParticle(e.gridPos, e.zHeight, '#a855f7');
+                      
+                      // Hit Effect on Enemy
+                      const hitFlash = new ParticleEffect(
+                          engine.getScreenPos(e.gridPos.x, e.gridPos.y), 
+                          e.zHeight + 15, 
+                          '#a855f7', 
+                          {x:0, y:0}, 
+                          0.2, 
+                          ParticleBehavior.FLOAT, 
+                          'FLASH'
+                      );
+                      hitFlash.size = 20;
+                      engine.particles.push(hitFlash);
                   });
              }
         }
@@ -104,10 +123,14 @@ export class PulseTower extends BaseTower {
 
     drawModel(ctx: CanvasRenderingContext2D, pos: Vector2) {
         const scale = this.constructionScale;
-        const bounce = Math.sin(this.coreHeight) * 3;
-        const energyPct = 1 - (this.cooldown / this.maxCooldown);
-        const glowIntensity = 0.5 + energyPct * 0.5;
-
+        const charge = 1 - (this.cooldown / this.maxCooldown);
+        
+        // Idle Hover
+        const hover = Math.sin(Date.now() / 300) * 3;
+        
+        // Recoil Squash & Stretch
+        const sq = this.recoil * 0.02; 
+        
         // --- SHADOW ---
         ctx.fillStyle = 'rgba(0,0,0,0.4)';
         ctx.beginPath(); ctx.ellipse(pos.x, pos.y, 20 * scale, 10 * scale, 0, 0, Math.PI * 2); ctx.fill();
@@ -116,13 +139,13 @@ export class PulseTower extends BaseTower {
         ctx.translate(pos.x, pos.y);
         ctx.scale(scale, scale);
 
-        // Level Indicators (Stacked Rings Style)
+        // Level Indicators
         const totalLevels = Math.max(1, this.level);
         for(let i=0; i<this.level; i++) {
              const progress = i / totalLevels;
              const alpha = 0.9 - (progress * 0.7);
 
-             ctx.strokeStyle = `rgba(168, 85, 247, ${Math.max(0.1, alpha)})`; // Purple
+             ctx.strokeStyle = `rgba(168, 85, 247, ${Math.max(0.1, alpha)})`;
              ctx.lineWidth = 1;
              ctx.beginPath();
              const r = 22 + (i * 2);
@@ -130,93 +153,89 @@ export class PulseTower extends BaseTower {
              ctx.stroke();
         }
 
-        // --- INDUSTRIAL BASE ---
+        // --- BASE ---
         ctx.fillStyle = '#1e1b4b'; // Dark Indigo
-        // Base plate
         ctx.beginPath();
-        ctx.moveTo(-20, 0);
-        ctx.lineTo(0, 10);
-        ctx.lineTo(20, 0);
-        ctx.lineTo(0, -10);
+        ctx.moveTo(-20, 0); ctx.lineTo(0, 10); ctx.lineTo(20, 0); ctx.lineTo(0, -10);
         ctx.fill();
 
-        // Base Block
         const gradBase = ctx.createLinearGradient(-15, -20, 15, 0);
-        gradBase.addColorStop(0, '#4c1d95');
-        gradBase.addColorStop(1, '#1e1b4b');
+        gradBase.addColorStop(0, '#4c1d95'); gradBase.addColorStop(1, '#1e1b4b');
         ctx.fillStyle = gradBase;
         ctx.fillRect(-12, -15, 24, 15);
         
-        // --- 4 PYLONS (Containment) ---
+        // --- PYLONS ---
         for(let i=0; i<4; i++) {
             const angle = (Math.PI/2 * i) + (Math.PI/4);
             const px = Math.cos(angle) * 14;
             const py = Math.sin(angle) * 8;
             
-            // Pylon Base
             ctx.fillStyle = '#581c87';
-            ctx.beginPath(); 
-            ctx.ellipse(px, py, 4, 2, 0, 0, Math.PI*2); 
-            ctx.fill();
+            ctx.beginPath(); ctx.ellipse(px, py, 4, 2, 0, 0, Math.PI*2); ctx.fill();
             
-            // Pylon Shaft
             ctx.fillStyle = '#6b21a8';
             ctx.fillRect(px - 2, py - 35, 4, 35);
             
-            // Pylon Tip
             ctx.fillStyle = '#d8b4fe';
             ctx.fillRect(px - 1, py - 35, 2, 4);
         }
 
         // --- FLOATING CORE ---
-        ctx.translate(0, -25 - bounce);
+        ctx.translate(0, -30 + hover);
         
-        // Scale pulse on fire
-        const expansion = this.recoil > 0 ? (this.recoil / 5) : 0;
-        ctx.scale(1 + expansion, 1 + expansion);
+        // Apply Squash on fire
+        ctx.scale(1 + sq, 1 - sq);
 
-        // Core Glow
-        const coreColor = '#a855f7';
-        ctx.shadowColor = this.recoil > 0 ? '#fff' : coreColor;
-        ctx.shadowBlur = 15 * glowIntensity + (this.recoil * 2);
+        // Core Glow (Intensifies with charge)
+        const glowSize = 10 + (charge * 15);
+        ctx.shadowColor = '#a855f7';
+        ctx.shadowBlur = glowSize;
         
-        // Draw Core (Sphere look)
-        const gradCore = ctx.createRadialGradient(-3, -3, 0, 0, 0, 10);
+        const gradCore = ctx.createRadialGradient(-5, -5, 0, 0, 0, 15);
         gradCore.addColorStop(0, '#fff');
-        gradCore.addColorStop(0.3, '#d8b4fe');
-        gradCore.addColorStop(1, '#7e22ce');
-        ctx.fillStyle = gradCore;
+        gradCore.addColorStop(0.4, '#d8b4fe');
+        gradCore.addColorStop(1, '#6b21a8');
         
-        ctx.beginPath();
-        ctx.arc(0, 0, 10, 0, Math.PI*2);
-        ctx.fill();
+        ctx.fillStyle = gradCore;
+        ctx.beginPath(); ctx.arc(0, 0, 12, 0, Math.PI*2); ctx.fill();
         ctx.shadowBlur = 0;
 
-        // Rotating Rings around core
-        ctx.strokeStyle = `rgba(216, 180, 254, ${glowIntensity})`;
-        ctx.lineWidth = 2;
-        
+        // Rotating Rings
+        // Ring 1
         ctx.save();
         ctx.rotate(this.spinAngle);
-        ctx.beginPath(); ctx.ellipse(0, 0, 16, 4, 0, 0, Math.PI*2); ctx.stroke();
+        ctx.strokeStyle = '#e9d5ff';
+        ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.ellipse(0, 0, 18, 6, 0, 0, Math.PI*2); ctx.stroke();
         ctx.restore();
 
+        // Ring 2 (Tilted)
         ctx.save();
         ctx.rotate(-this.spinAngle * 1.5);
-        ctx.beginPath(); ctx.ellipse(0, 0, 14, 8, 0, 0, Math.PI*2); ctx.stroke();
+        ctx.strokeStyle = '#c084fc';
+        ctx.lineWidth = 3;
+        ctx.scale(1, 0.4); 
+        ctx.beginPath(); ctx.arc(0,0, 22, 0, Math.PI*2); ctx.stroke();
         ctx.restore();
+        
+        // Residual Plasma Sphere (on fire)
+        if (this.recoil > 5) {
+             ctx.globalCompositeOperation = 'lighter';
+             ctx.fillStyle = `rgba(168, 85, 247, ${this.recoil / 20})`;
+             ctx.beginPath(); ctx.arc(0, 0, this.recoil * 1.5, 0, Math.PI*2); ctx.fill();
+             ctx.globalCompositeOperation = 'source-over';
+        }
 
-        // --- LIGHTNING ARCS ---
-        if (Math.random() > 0.5 || this.recoil > 0) {
+        // Lightning Arcs to Pylons
+        if (this.recoil > 0 || Math.random() > 0.95) {
             ctx.globalCompositeOperation = 'lighter';
             ctx.strokeStyle = '#fff';
             ctx.lineWidth = 1.5;
             ctx.beginPath();
-            // Pick a random pylon pos relative to center
             const pIdx = Math.floor(Math.random()*4);
             const pAngle = (Math.PI/2 * pIdx) + (Math.PI/4);
             const px = Math.cos(pAngle) * 14;
-            const py = Math.sin(pAngle) * 8 + 35; // Adjust for coordinate space relative to core
+            const py = Math.sin(pAngle) * 8 + 30; // Relative coords
             
             ctx.moveTo(0,0);
             const midX = px * 0.5 + (Math.random()-0.5)*10;

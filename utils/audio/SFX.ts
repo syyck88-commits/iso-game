@@ -1,4 +1,6 @@
 
+
+
 import { AudioCore } from './AudioCore';
 import { Instruments } from './Instruments';
 
@@ -36,6 +38,9 @@ export class SFX {
               break;
           case 'plasma':
               buf = await this.core.renderToBuffer(0.4, (ctx, dest) => this.synthPlasma(ctx, dest, 0), log);
+              break;
+          case 'pulse':
+              buf = await this.core.renderToBuffer(0.6, (ctx, dest) => this.synthPulse(ctx, dest, 0), log);
               break;
           case 'alarm':
               buf = await this.core.renderToBuffer(0.6, (ctx, dest) => this.synthAlarm(ctx, dest, 0), log);
@@ -75,7 +80,7 @@ export class SFX {
 
   waveStart() {
       const buf = this.buffers.get('wave_start');
-      if (buf) this.core.playBuffer(buf, this.core.currentTime, 'SFX', 1.0, 1.5);
+      if (buf) this.core.playBuffer(buf, this.core.currentTime, 'SFX', 1.0, 1.2); // Adjusted volume slightly down for new loud synthesis
   }
 
   shoot(pitchVar = 1.0) {
@@ -165,19 +170,54 @@ export class SFX {
   }
   
   levelUp() {
-      // Chiptune powerup
+      // MAGICAL CHIME: C Major 7 Arpeggio (C, E, G, B, C)
       if (!this.core.ctx || !this.core.sfxBus) return;
       const t = this.core.currentTime;
-      const osc = this.core.ctx.createOscillator();
-      osc.type = 'square';
-      osc.frequency.setValueAtTime(440, t);
-      osc.frequency.linearRampToValueAtTime(880, t + 0.2);
-      const gain = this.core.ctx.createGain();
-      gain.gain.setValueAtTime(0.5, t);
-      gain.gain.linearRampToValueAtTime(0, t + 0.3);
-      osc.connect(gain);
-      gain.connect(this.core.sfxBus);
-      osc.start(t); osc.stop(t+0.3);
+      
+      const notes = [523.25, 659.25, 783.99, 987.77, 1046.50]; // C5, E5, G5, B5, C6
+      
+      notes.forEach((freq, i) => {
+          const osc = this.core.ctx!.createOscillator();
+          const gain = this.core.ctx!.createGain();
+          
+          osc.type = 'sine'; // Pure tone
+          osc.frequency.value = freq;
+          
+          const startTime = t + (i * 0.04); // Fast arpeggio
+          
+          gain.gain.setValueAtTime(0, startTime);
+          gain.gain.linearRampToValueAtTime(0.15, startTime + 0.02); // Quick attack
+          gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.5); // Smooth decay
+          
+          osc.connect(gain);
+          gain.connect(this.core.sfxBus!);
+          
+          osc.start(startTime);
+          osc.stop(startTime + 0.6);
+      });
+
+      // Subtle Sparkle Noise
+      const bufferSize = this.core.ctx.sampleRate * 0.5;
+      const buffer = this.core.ctx.createBuffer(1, bufferSize, this.core.ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+      
+      const noise = this.core.ctx.createBufferSource();
+      noise.buffer = buffer;
+      const noiseGain = this.core.ctx.createGain();
+      const noiseFilter = this.core.ctx.createBiquadFilter();
+      
+      noiseFilter.type = 'highpass';
+      noiseFilter.frequency.value = 5000;
+      
+      noiseGain.gain.setValueAtTime(0.05, t);
+      noiseGain.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+      
+      noise.connect(noiseFilter);
+      noiseFilter.connect(noiseGain);
+      noiseGain.connect(this.core.sfxBus);
+      
+      noise.start(t);
   }
 
   upgrade() {
@@ -195,9 +235,8 @@ export class SFX {
   }
 
   pulse() {
-     if (!this.core.ctx) return;
-     // Deep triangle kick
-     this.inst.nesTriangleBass(this.core.currentTime, 80, 0.4);
+      const buf = this.buffers.get('pulse');
+      if (buf) this.core.playBuffer(buf, this.core.currentTime, 'SFX', 0.9 + Math.random() * 0.2, 0.9);
   }
 
   alarm() {
@@ -387,6 +426,64 @@ export class SFX {
       osc.start(time);
       osc.stop(time + 0.2);
   }
+  
+  private synthPulse(ctx: BaseAudioContext, dest: AudioNode, time: number) {
+      // 1. Deep Sub Bass (The "Thump")
+      const osc = ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(80, time); // Lower start
+      osc.frequency.exponentialRampToValueAtTime(10, time + 0.4); // Lower end, longer tail
+      
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(1.2, time); // Boosted gain
+      gain.gain.exponentialRampToValueAtTime(0.01, time + 0.4);
+      
+      osc.connect(gain);
+      gain.connect(dest);
+      osc.start(time); osc.stop(time + 0.4);
+
+      // 2. Resonant Low Sweep (The "Wub")
+      const zap = ctx.createOscillator();
+      zap.type = 'sawtooth';
+      zap.frequency.setValueAtTime(150, time); // Much lower pitch
+      zap.frequency.exponentialRampToValueAtTime(40, time + 0.3);
+      
+      const zapFilter = ctx.createBiquadFilter();
+      zapFilter.type = 'lowpass';
+      zapFilter.Q.value = 5; 
+      zapFilter.frequency.setValueAtTime(600, time); // Darker filter
+      zapFilter.frequency.exponentialRampToValueAtTime(50, time + 0.3);
+      
+      const zapGain = ctx.createGain();
+      zapGain.gain.setValueAtTime(0.6, time);
+      zapGain.gain.exponentialRampToValueAtTime(0.01, time + 0.3);
+
+      zap.connect(zapFilter);
+      zapFilter.connect(zapGain);
+      zapGain.connect(dest);
+      zap.start(time); zap.stop(time + 0.3);
+      
+      // 3. Muffled Impact Noise
+      const bufferSize = ctx.sampleRate * 0.1;
+      const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+      
+      const noise = ctx.createBufferSource();
+      noise.buffer = buffer;
+      const noiseGain = ctx.createGain();
+      noiseGain.gain.setValueAtTime(0.4, time);
+      noiseGain.gain.linearRampToValueAtTime(0, time + 0.1);
+      
+      const noiseFilter = ctx.createBiquadFilter();
+      noiseFilter.type = 'lowpass';
+      noiseFilter.frequency.value = 400; // Muffled thud
+      
+      noise.connect(noiseFilter);
+      noiseFilter.connect(noiseGain);
+      noiseGain.connect(dest);
+      noise.start(time);
+  }
 
   private synthAlarm(ctx: BaseAudioContext, dest: AudioNode, time: number) {
       const osc = ctx.createOscillator();
@@ -443,21 +540,66 @@ export class SFX {
   }
   
   private synthWaveStart(ctx: BaseAudioContext, dest: AudioNode, time: number) {
+      // 1. Initial Impact (Kick/Sub Drop)
+      const sub = ctx.createOscillator();
+      const subGain = ctx.createGain();
+      sub.type = 'sine';
+      sub.frequency.setValueAtTime(150, time);
+      sub.frequency.exponentialRampToValueAtTime(40, time + 1.0);
+      
+      subGain.gain.setValueAtTime(0.8, time);
+      subGain.gain.exponentialRampToValueAtTime(0.01, time + 1.0);
+      
+      sub.connect(subGain);
+      subGain.connect(dest);
+      sub.start(time); sub.stop(time + 1.2);
+
+      // 2. Rising Synth Swell (Tension)
+      const duration = 2.5;
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(55, time); 
-      gain.gain.setValueAtTime(0, time);
-      gain.gain.linearRampToValueAtTime(1.0, time + 1.0);
-      gain.gain.linearRampToValueAtTime(0, time + 3.0);
+      osc.type = 'sawtooth';
+      // Start low, pitch up dramatically
+      osc.frequency.setValueAtTime(110, time); 
+      osc.frequency.exponentialRampToValueAtTime(440, time + duration);
+
       const filter = ctx.createBiquadFilter();
       filter.type = 'lowpass';
-      filter.frequency.setValueAtTime(100, time);
-      filter.frequency.linearRampToValueAtTime(400, time + 1.5);
+      filter.frequency.setValueAtTime(200, time);
+      filter.frequency.exponentialRampToValueAtTime(4000, time + duration);
+
+      gain.gain.setValueAtTime(0, time);
+      gain.gain.linearRampToValueAtTime(0.5, time + 0.2); // Fade in
+      gain.gain.linearRampToValueAtTime(0, time + duration); // Fade out
+
       osc.connect(filter);
       filter.connect(gain);
       gain.connect(dest);
-      osc.start(time); osc.stop(time + 3.0);
+      osc.start(time); osc.stop(time + duration);
+
+      // 3. Sci-Fi Sweep (Bandpass Noise)
+      const bufferSize = ctx.sampleRate * duration;
+      const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for(let i=0; i<bufferSize; i++) data[i] = Math.random() * 2 - 1;
+      
+      const noise = ctx.createBufferSource();
+      noise.buffer = buffer;
+      const noiseGain = ctx.createGain();
+      const noiseFilter = ctx.createBiquadFilter();
+      noiseFilter.type = 'bandpass';
+      noiseFilter.Q.value = 5;
+      noiseFilter.frequency.setValueAtTime(400, time);
+      noiseFilter.frequency.exponentialRampToValueAtTime(2000, time + duration);
+      
+      noiseGain.gain.setValueAtTime(0, time);
+      noiseGain.gain.linearRampToValueAtTime(0.3, time + duration * 0.5);
+      noiseGain.gain.linearRampToValueAtTime(0, time + duration);
+      
+      noise.connect(noiseFilter);
+      noiseFilter.connect(noiseGain);
+      noiseGain.connect(dest);
+      noise.start(time);
   }
   
   private synthPhantomDeath(ctx: BaseAudioContext, dest: AudioNode, time: number) {

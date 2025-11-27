@@ -178,7 +178,6 @@ export class SplitterEnemy extends BaseEnemy {
 export class MechEnemy extends BaseEnemy {
     stepPhase: number = 0;
     legs: IKLeg[] = [];
-    initializedIK: boolean = false;
 
     constructor(path: Vector2[], wave: number) {
         super(path, wave, EnemyVariant.MECH);
@@ -187,10 +186,26 @@ export class MechEnemy extends BaseEnemy {
         this.health = this.maxHealth;
         this.speed = (0.03 + (Math.min(20, wave) * 0.001)) * 0.5;
         this.moneyValue = 60;
+
+        // Init Legs
+        // 2 Large Legs
+        // Init with dummy positions, they snap on first update
+        this.legs.push(new IKLeg(0, 0, 20, 15, 200)); // Left
+        this.legs.push(new IKLeg(0, 0, 20, 15, 200)); // Right
     }
 
     onUpdate(dt: number, engine: GameEngine) {
-        // Logic handled in IK system
+        // --- UPDATE IK ---
+        const pos = engine.getScreenPos(this.gridPos.x, this.gridPos.y);
+        
+        // Alternating gait
+        const leftStep = this.legs[0].isStepping;
+        const rightStep = this.legs[1].isStepping;
+        
+        // Update Left
+        this.legs[0].update(pos.x - 16, pos.y + 5, dt, !rightStep);
+        // Update Right
+        this.legs[1].update(pos.x + 16, pos.y + 5, dt, !leftStep);
     }
     
     onDeathStart(engine: GameEngine) {
@@ -216,26 +231,7 @@ export class MechEnemy extends BaseEnemy {
     drawModel(ctx: CanvasRenderingContext2D, pos: Vector2) {
         if (this.opacity <= 0) return;
 
-        // --- IK INIT ---
-        if (!this.initializedIK) {
-            // 2 Large Legs
-            this.legs.push(new IKLeg(pos.x - 12, pos.y, 20, 15, 0.15)); // Left
-            this.legs.push(new IKLeg(pos.x + 12, pos.y, 20, 15, 0.15)); // Right
-            this.initializedIK = true;
-        }
-
         const bodyY = pos.y - 25;
-
-        // --- UPDATE LEGS ---
-        // Alternating gait
-        const leftStep = this.legs[0].isStepping;
-        const rightStep = this.legs[1].isStepping;
-        
-        // Update Left
-        this.legs[0].update(pos.x - 16, pos.y + 5, !rightStep);
-        // Update Right
-        this.legs[1].update(pos.x + 16, pos.y + 5, !leftStep);
-
         const time = Date.now() / 200 + this.wobbleOffset;
         const glow = Math.sin(time * 5) * 0.5 + 0.5;
 

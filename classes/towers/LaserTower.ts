@@ -14,6 +14,9 @@ export class LaserTower extends BaseTower {
     ringAngleX: number = 0;
     ringAngleY: number = 0;
     heatTimer: number = 0;
+    
+    // Debug Target tracking
+    debugTarget: BaseEnemy | null = null;
 
     constructor(x: number, y: number) {
         super(EntityType.TOWER_LASER, x, y);
@@ -21,6 +24,7 @@ export class LaserTower extends BaseTower {
         this.range = 4.5;
         this.damage = 1.0; 
         this.totalSpent = 120;
+        this.turnSpeed = 10.0; // Fast tracking
     }
 
     getUpgradeCost(): number {
@@ -30,6 +34,12 @@ export class LaserTower extends BaseTower {
     performUpgradeStats() {
         this.damage = this.damage * 1.3;
         this.range += 0.5;
+        this.turnSpeed += 2.0;
+    }
+    
+    forceFire(target: BaseEnemy, engine: GameEngine) {
+        this.debugTarget = target;
+        this.laserCharge = 3.0; // Max charge instantly
     }
 
     onTowerUpdate(dt: number, engine: GameEngine) {
@@ -58,14 +68,25 @@ export class LaserTower extends BaseTower {
                     ParticleBehavior.FLOAT
                 );
                 p.size = 2;
-                engine.particles.push(p);
+                if (engine.previewMode) {
+                    engine.previewParticles.push(p);
+                } else {
+                    engine.particles.push(p);
+                }
             }
         }
 
+        // DEBUG TARGET PRIORITY
+        if (this.debugTarget) {
+            target = this.debugTarget;
+            // Clean up if debug target dead
+            if (this.debugTarget.health <= 0) this.debugTarget = null;
+        }
+
         // Verify existing target
-        if (this.targetId) {
+        if (!target && this.targetId) {
             const existing = enemies.find(e => e.id === this.targetId);
-            if (existing && existing.health > 0) {
+            if (existing && existing.health > 0 && !existing.isDying) {
                 const dist = this.getDist(existing.gridPos);
                 if (dist <= this.range) {
                     target = existing;
@@ -78,6 +99,8 @@ export class LaserTower extends BaseTower {
             this.laserCharge = Math.max(0, this.laserCharge - dt * 0.005); // Decay
             let minDist = Infinity;
             for (const e of enemies) {
+                if (e.health <= 0 || e.isDying) continue;
+
                 const dist = this.getDist(e.gridPos);
                 if (dist <= this.range && dist < minDist) {
                     minDist = dist;
@@ -88,31 +111,43 @@ export class LaserTower extends BaseTower {
 
         if (target) {
             this.targetId = target.id;
-            this.laserCharge = Math.min(3.0, this.laserCharge + (dt / 1000));
-            
-            // Damage is already time-based (dt/16), so it scales correctly with tick
-            const actualDamage = (this.damage * (1 + this.laserCharge)) * (dt / 16); 
-            target.health -= actualDamage;
 
-            if (target.health <= 0) {
-                this.killCount++;
-            }
-
+            // Rotation Logic
             const screenT = engine.getScreenPos(target.gridPos.x, target.gridPos.y);
             const screenS = engine.getScreenPos(this.gridPos.x, this.gridPos.y);
             const pivotY = 50;
             const targetY = 15;
-            this.rotation = Math.atan2((screenT.y - targetY) - (screenS.y - pivotY), screenT.x - screenS.x);
-
-            this.laserBeamWidth = 1 + this.laserCharge * 2;
             
-            // Hit Sparks
-            if (Math.random() > 0.5) {
-                engine.spawnParticle(target.gridPos, target.zHeight + 5, '#67e8f9');
+            const targetAngle = Math.atan2((screenT.y - targetY) - (screenS.y - pivotY), screenT.x - screenS.x);
+            
+            // Aim
+            const isAimed = this.rotateTowards(targetAngle, dt, 0.5); // Wider tolerance for continuous laser
+
+            if (isAimed) {
+                this.laserCharge = Math.min(3.0, this.laserCharge + (dt / 1000));
+                
+                // Damage is already time-based (dt/16), so it scales correctly with tick
+                const actualDamage = (this.damage * (1 + this.laserCharge)) * (dt / 16); 
+                target.health -= actualDamage;
+
+                if (target.health <= 0) {
+                    this.killCount++;
+                }
+
+                this.laserBeamWidth = 1 + this.laserCharge * 2;
+                
+                // Hit Sparks
+                if (Math.random() > 0.5) {
+                    engine.spawnParticle(target.gridPos, target.zHeight + 5, '#67e8f9');
+                }
+                if (Math.random() > 0.92) {
+                    engine.audio.playLaser();
+                }
+            } else {
+                // If aiming but not locked, charge doesn't increase, but doesn't decay as fast
+                 this.laserCharge = Math.max(0, this.laserCharge - dt * 0.001);
             }
-            if (Math.random() > 0.92) {
-                engine.audio.playLaser();
-            }
+
         } else {
             this.targetId = null;
         }

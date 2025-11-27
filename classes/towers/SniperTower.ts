@@ -17,6 +17,7 @@ export class SniperTower extends BaseTower {
         this.range = 7;
         this.damage = 35;
         this.totalSpent = 50;
+        this.turnSpeed = 2.5; // Very slow rotation (Balance)
     }
 
     getUpgradeCost(): number {
@@ -27,6 +28,41 @@ export class SniperTower extends BaseTower {
         this.damage = Math.floor(this.damage * 1.5);
         this.range += 0.5;
         this.maxCooldown = Math.max(5, Math.floor(this.maxCooldown * 0.85));
+        this.turnSpeed += 0.5; 
+    }
+
+    forceFire(target: BaseEnemy, engine: GameEngine) {
+        engine.spawnProjectile(this, target);
+        engine.audio.playSniper();
+        
+        const screenS = engine.getScreenPos(this.gridPos.x, this.gridPos.y);
+        const pivotY = 45;
+        const tipX = screenS.x + Math.cos(this.rotation) * 40;
+        const tipY = screenS.y - pivotY + Math.sin(this.rotation) * 40;
+        
+        // Railgun discharge particles
+        for(let i=0; i<8; i++) {
+           const vel = {
+               x: Math.cos(this.rotation) * (5 + Math.random() * 5),
+               y: Math.sin(this.rotation) * (5 + Math.random() * 5)
+           };
+           engine.particles.push(new ParticleEffect(
+               {x: tipX, y: tipY}, 
+               0, '#22d3ee', vel, 0.4, ParticleBehavior.PHYSICS
+           ));
+        }
+
+        this.recoil = 8;
+        this.cooldown = this.maxCooldown;
+        
+        // Residue
+        const shellVel = {
+            x: -Math.sin(this.rotation) * 2,
+            y: Math.cos(this.rotation) * 2 - 3 
+        };
+        const residue = new ParticleEffect({x:screenS.x, y:screenS.y}, 40, '#0ea5e9', shellVel, 0.5, ParticleBehavior.PHYSICS);
+        residue.size = 2;
+        engine.particles.push(residue);
     }
 
     onTowerUpdate(dt: number, engine: GameEngine) {
@@ -47,70 +83,46 @@ export class SniperTower extends BaseTower {
             }
         }
 
-        if (this.cooldown <= 0) {
-            const enemies = engine.enemies;
-            let bestTarget: BaseEnemy | null = null;
-            
-            // Sniper Logic: Prioritize High HP
-            for (const e of enemies) {
-                if (this.getDist(e.gridPos) <= this.range) {
-                    if (!bestTarget || e.health > bestTarget.health) {
-                        bestTarget = e;
-                    }
+        const enemies = engine.enemies;
+        let bestTarget: BaseEnemy | null = null;
+        
+        // Sniper Logic: Prioritize High HP
+        for (const e of enemies) {
+            if (e.health <= 0 || e.isDying) continue; // Skip Dead
+
+            if (this.getDist(e.gridPos) <= this.range) {
+                if (!bestTarget || e.health > bestTarget.health) {
+                    bestTarget = e;
                 }
             }
+        }
 
-            if (bestTarget) {
-                this.targetId = bestTarget.id;
-                const screenT = engine.getScreenPos(bestTarget.gridPos.x, bestTarget.gridPos.y);
-                const screenS = engine.getScreenPos(this.gridPos.x, this.gridPos.y);
-                
-                const pivotY = 50; // Higher pivot for this tower
-                const targetCenterY = 15;
-                this.rotation = Math.atan2((screenT.y - targetCenterY) - (screenS.y - pivotY), screenT.x - screenS.x);
-                
+        if (bestTarget) {
+            this.targetId = bestTarget.id;
+            const screenT = engine.getScreenPos(bestTarget.gridPos.x, bestTarget.gridPos.y);
+            const screenS = engine.getScreenPos(this.gridPos.x, this.gridPos.y);
+            
+            const pivotY = 45; // Match visual height (was 50)
+            const targetCenterY = 15;
+            
+            // Calculate Angle
+            const targetAngle = Math.atan2((screenT.y - targetCenterY) - (screenS.y - pivotY), screenT.x - screenS.x);
+            
+            // Rotate Slowly
+            const isAimed = this.rotateTowards(targetAngle, dt, 0.1); // Strict tolerance for sniper (must aim well)
+
+            if (this.cooldown <= 0 && isAimed) {
                 // Fire
-                engine.spawnProjectile(this, bestTarget);
-                engine.audio.playSniper();
-                
-                // Muzzle Flash
-                const tipX = screenS.x + Math.cos(this.rotation) * 40;
-                const tipY = screenS.y - pivotY + Math.sin(this.rotation) * 40;
-                
-                // Railgun discharge particles (Blue/Cyan)
-                for(let i=0; i<8; i++) {
-                   const vel = {
-                       x: Math.cos(this.rotation) * (5 + Math.random() * 5),
-                       y: Math.sin(this.rotation) * (5 + Math.random() * 5)
-                   };
-                   engine.particles.push(new ParticleEffect(
-                       {x: tipX, y: tipY}, 
-                       60, '#22d3ee', vel, 0.4, ParticleBehavior.PHYSICS
-                   ));
-                }
-
-                // Recoil
-                this.recoil = 8;
-                this.cooldown = this.maxCooldown;
-                
-                // Energy casing? No, just a spark burst for energy weapons
-                const shellVel = {
-                    x: -Math.sin(this.rotation) * 2,
-                    y: Math.cos(this.rotation) * 2 - 3 
-                };
-                // Small energy residue
-                const residue = new ParticleEffect({x:screenS.x, y:screenS.y - 40}, 50, '#0ea5e9', shellVel, 0.5, ParticleBehavior.PHYSICS);
-                residue.size = 2;
-                engine.particles.push(residue);
+                this.forceFire(bestTarget, engine);
             }
         }
     }
 
     spawnVentParticles(engine: GameEngine) {
         const pos = engine.getScreenPos(this.gridPos.x, this.gridPos.y);
-        const yOff = 45;
         // Vent energy from the core
-        const p1 = new ParticleEffect({x: pos.x, y: pos.y - yOff}, 50, 'rgba(34, 211, 238, 0.4)', {x:0, y:-1}, 0.5, ParticleBehavior.FLOAT);
+        // Use Z=45 (top of tower) with ground position
+        const p1 = new ParticleEffect({x: pos.x, y: pos.y}, 45, 'rgba(34, 211, 238, 0.4)', {x:0, y:-1}, 0.5, ParticleBehavior.FLOAT);
         engine.particles.push(p1);
     }
 

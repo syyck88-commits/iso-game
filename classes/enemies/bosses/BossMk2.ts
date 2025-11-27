@@ -13,10 +13,14 @@ export class BossMk2 extends BossEnemy {
 
     // IK
     legs: IKLeg[] = [];
-    initializedIK: boolean = false;
     
     constructor(path: Vector2[], wave: number) {
         super(path, wave, EnemyVariant.BOSS_MK2, 25.0, 0.5, 400); 
+        
+        // Init 4 Legs
+        for(let i=0; i<4; i++) {
+            this.legs.push(new IKLeg(0, 0, 15, 15, 180));
+        }
     }
 
     update(dt: number, engine: GameEngine) {
@@ -39,6 +43,29 @@ export class BossMk2 extends BossEnemy {
              const p = new ParticleEffect({x: pos.x, y: pos.y + 10}, 20, '#a3e635', {x:0,y:2}, 0.5, ParticleBehavior.PHYSICS);
              engine.particles.push(p);
         }
+
+        // --- IK UPDATE ---
+        const pos = engine.getScreenPos(this.gridPos.x, this.gridPos.y);
+        const time = Date.now() / 200 + this.wobbleOffset;
+        const hover = Math.sin(time) * 5;
+        const renderY = pos.y - 40 + hover;
+
+        const isGroupA = this.legs[0].isStepping || this.legs[3].isStepping;
+        const isGroupB = this.legs[1].isStepping || this.legs[2].isStepping;
+
+        // Leg 0 (Front Right), Leg 1 (Back Right), Leg 2 (Front Left), Leg 3 (Back Left)
+        this.legs.forEach((leg, i) => {
+            const isLeft = i >= 2;
+            const isBack = (i % 2) === 1;
+            const idealX = pos.x + (isLeft ? -25 : 25) + (isBack ? -5 : 5);
+            const idealY = renderY + 40 + (isBack ? 10 : -10);
+            
+            // Allow step if diagonal pair is grounded
+            const myGroupStepping = (i === 0 || i === 3) ? isGroupA : isGroupB;
+            const otherGroupStepping = (i === 0 || i === 3) ? isGroupB : isGroupA;
+            
+            leg.update(idealX, idealY, dt, !otherGroupStepping);
+        });
     }
 
     updateDeathSequence(dt: number, engine: GameEngine) {
@@ -98,38 +125,6 @@ export class BossMk2 extends BossEnemy {
 
         const isPhase1Death = this.isDying && this.deathTimer < 1500;
         
-        // --- IK INIT ---
-        if (!this.initializedIK) {
-            // 4 Legs
-            for(let i=0; i<4; i++) {
-                const isLeft = i >= 2;
-                const offsetX = isLeft ? -20 : 20;
-                this.legs.push(new IKLeg(pos.x + offsetX, pos.y + 10, 15, 15, 0.2));
-            }
-            this.initializedIK = true;
-        }
-
-        // --- IK UPDATE ---
-        if (!this.isDying) {
-            const isGroupA = this.legs[0].isStepping || this.legs[3].isStepping;
-            const isGroupB = this.legs[1].isStepping || this.legs[2].isStepping;
-
-            // Leg 0 (Front Right), Leg 1 (Back Right), Leg 2 (Front Left), Leg 3 (Back Left)
-            // Gait: Diagonal pairs
-            this.legs.forEach((leg, i) => {
-                const isLeft = i >= 2;
-                const isBack = (i % 2) === 1;
-                const idealX = pos.x + (isLeft ? -25 : 25) + (isBack ? -5 : 5);
-                const idealY = renderY + 40 + (isBack ? 10 : -10);
-                
-                // Allow step if diagonal pair is grounded
-                const myGroupStepping = (i === 0 || i === 3) ? isGroupA : isGroupB;
-                const otherGroupStepping = (i === 0 || i === 3) ? isGroupB : isGroupA;
-                
-                leg.update(idealX, idealY, !otherGroupStepping);
-            });
-        }
-
         // --- DRAW LEGS ---
         ctx.strokeStyle = '#713f12';
         ctx.lineWidth = 3;

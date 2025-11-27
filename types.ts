@@ -1,4 +1,5 @@
 
+
 export interface Vector2 {
   x: number;
   y: number;
@@ -71,6 +72,6 @@ export interface GameState {
   gameActive: boolean;
 }
 
-export const GRID_SIZE = 20;
-export const TILE_WIDTH = 64;
-export const TILE_HEIGHT = 32;
+export const GRID_SIZE = 30;
+export const TILE_WIDTH = 52;
+export const TILE_HEIGHT = 26;

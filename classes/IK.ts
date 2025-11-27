@@ -1,5 +1,4 @@
 
-
 import { Vector2 } from '../types';
 
 export interface IKTarget {
@@ -21,30 +20,43 @@ export class IKLeg {
     
     // Config
     stepHeight: number;
-    stepSpeed: number;
-    stepThreshold: number; // How far body moves before leg lifts
+    stepDuration: number; // ms
+    stepThreshold: number; // Pixels
     
-    constructor(startX: number, startY: number, stepHeight = 15, stepThreshold = 30, stepSpeed = 0.1) {
+    constructor(startX: number, startY: number, stepHeight = 15, stepThreshold = 30, stepDuration = 150) {
         this.current = { x: startX, y: startY };
         this.target = { x: startX, y: startY };
         this.start = { x: startX, y: startY };
         this.stepHeight = stepHeight;
         this.stepThreshold = stepThreshold;
-        this.stepSpeed = stepSpeed;
+        this.stepDuration = stepDuration;
     }
 
     /**
      * Updates the leg logic.
      * @param idealX The ideal resting position X based on body
      * @param idealY The ideal resting position Y based on body
+     * @param dt Delta time in ms
      * @param canStep Whether this leg is allowed to trigger a step (for gait control)
      * @returns True if currently stepping
      */
-    update(idealX: number, idealY: number, canStep: boolean = true): boolean {
+    update(idealX: number, idealY: number, dt: number, canStep: boolean = true): boolean {
         // Distance from current "grounded" pos to ideal pos
         const dx = idealX - this.target.x;
         const dy = idealY - this.target.y;
         const distSq = dx*dx + dy*dy;
+
+        // PANIC SNAP: If leg is dragged too far (e.g. speed boost), snap it instantly
+        // This prevents the "sticky leg" stretching artifact
+        if (distSq > (this.stepThreshold * this.stepThreshold * 9)) {
+            this.target.x = idealX;
+            this.target.y = idealY;
+            this.current.x = idealX;
+            this.current.y = idealY;
+            this.isStepping = false;
+            this.stepProgress = 1;
+            return false;
+        }
 
         // Trigger Step if too far
         if (!this.isStepping && canStep && distSq > (this.stepThreshold * this.stepThreshold)) {
@@ -58,22 +70,8 @@ export class IKLeg {
 
         // Animate Step
         if (this.isStepping) {
-            // NOTE: stepSpeed is calibrated for 60fps (1 tick = 0.1 progress typically)
-            // But since this update method doesn't take DT, we assume it's called in a render loop.
-            // However, to fix high-refresh rate issues, we SHOULD scale this. 
-            // For now, we assume the caller is controlling the frequency or just let it be visuals only.
-            // Ideally caller passes tick, but to avoid API break in `Enemy.ts`, we'll leave it as frame-based 
-            // since it's visual. BUT, since Enemy calls this every frame, it speeds up on 144hz.
-            // Let's rely on the fact we usually call this once per update cycle.
+            this.stepProgress += dt / this.stepDuration;
             
-            // To properly fix, we'll clamp it or just use a small fixed increment, 
-            // but effectively we are relying on `GameEngine` passing correct dt to `Enemy`
-            // but `Enemy` calling this method.
-            
-            // Assuming this class is simple enough, let's just use the value.
-            // If the user scrolls fast, legs move fast.
-            
-            this.stepProgress += this.stepSpeed; 
             if (this.stepProgress >= 1) {
                 this.stepProgress = 1;
                 this.isStepping = false;
@@ -83,7 +81,7 @@ export class IKLeg {
                 // Lerp X/Y
                 const t = this.stepProgress;
                 // Ease-in-out curve
-                const smoothT = t * t * (3 - 2 * t);
+                const smoothT = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
                 
                 this.current.x = this.start.x + (this.target.x - this.start.x) * smoothT;
                 this.current.y = this.start.y + (this.target.y - this.start.y) * smoothT;
@@ -94,7 +92,8 @@ export class IKLeg {
                 this.current.y -= lift;
             }
         } else {
-            // Keep grounded
+            // Keep grounded at target (prevents drifting if target changed while grounded)
+            // Note: usually target doesn't change while grounded, but good for stability
         }
 
         return this.isStepping;

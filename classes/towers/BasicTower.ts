@@ -16,6 +16,7 @@ export class BasicTower extends BaseTower {
         this.range = 3.5;
         this.damage = 5;
         this.totalSpent = 30;
+        this.turnSpeed = 8.0; // Fast rotation
     }
 
     getUpgradeCost(): number {
@@ -26,6 +27,21 @@ export class BasicTower extends BaseTower {
         this.damage = Math.floor(this.damage * 1.5);
         this.range += 0.5;
         this.maxCooldown = Math.max(5, Math.floor(this.maxCooldown * 0.85));
+        this.turnSpeed += 1.0; // Upgrades improve traverse speed
+    }
+
+    forceFire(target: BaseEnemy, engine: GameEngine) {
+        engine.spawnProjectile(this, target);
+        engine.audio.playShoot(1.2);
+        this.recoil = 5;
+        this.cooldown = this.maxCooldown;
+
+        const pos = engine.getScreenPos(this.gridPos.x, this.gridPos.y);
+        // Pivot Y hardcoded roughly matching model
+        const pivotY = 30; 
+        const tipX = pos.x + Math.cos(this.rotation) * 20;
+        const tipY = pos.y - pivotY + Math.sin(this.rotation) * 20;
+        engine.particles.push(new ParticleEffect({x: tipX, y: tipY}, 0, '#60a5fa', {x:0,y:0}, 0.2, ParticleBehavior.FLOAT));
     }
 
     onTowerUpdate(dt: number, engine: GameEngine) {
@@ -37,48 +53,56 @@ export class BasicTower extends BaseTower {
         this.barrelAngle += this.spinSpeed * tick;
         this.spinSpeed *= Math.pow(0.95, tick); // Friction
 
-        if (this.cooldown <= 0) {
-            const enemies = engine.enemies;
-            let bestTarget: BaseEnemy | null = null;
-            let minDist = Infinity;
+        const enemies = engine.enemies;
+        let bestTarget: BaseEnemy | null = null;
+        let minDist = Infinity;
 
-            for (const e of enemies) {
-                const dist = this.getDist(e.gridPos);
-                if (dist <= this.range) {
-                    if (dist < minDist) {
-                        minDist = dist;
-                        bestTarget = e;
-                    }
+        // 1. Find Target (Skip dying)
+        for (const e of enemies) {
+            if (e.health <= 0 || e.isDying) continue; // Skip Dead
+
+            const dist = this.getDist(e.gridPos);
+            if (dist <= this.range) {
+                if (dist < minDist) {
+                    minDist = dist;
+                    bestTarget = e;
                 }
             }
+        }
 
-            if (bestTarget) {
-                this.targetId = bestTarget.id;
-                const screenT = engine.getScreenPos(bestTarget.gridPos.x, bestTarget.gridPos.y);
-                const screenS = engine.getScreenPos(this.gridPos.x, this.gridPos.y);
-                
-                const pivotY = 30; 
-                const targetCenterY = 15;
+        if (bestTarget) {
+            this.targetId = bestTarget.id;
+            const screenT = engine.getScreenPos(bestTarget.gridPos.x, bestTarget.gridPos.y);
+            const screenS = engine.getScreenPos(this.gridPos.x, this.gridPos.y);
+            
+            const pivotY = 30; 
+            const targetCenterY = 15;
 
-                this.rotation = Math.atan2((screenT.y - targetCenterY) - (screenS.y - pivotY), screenT.x - screenS.x);
+            // Calculate Desired Angle
+            const targetAngle = Math.atan2((screenT.y - targetCenterY) - (screenS.y - pivotY), screenT.x - screenS.x);
+            
+            // Smooth Rotate
+            const isAimed = this.rotateTowards(targetAngle, dt, 0.3); // 0.3 rad tolerance
 
-                // Energy Charge Up
-                this.spinSpeed = Math.min(1.0, this.spinSpeed + 0.1 * tick);
+            // Energy Charge Up (always happens if target exists)
+            this.spinSpeed = Math.min(1.0, this.spinSpeed + 0.1 * tick);
 
-                // Fire
-                if (this.spinSpeed > 0.6) {
-                    engine.spawnProjectile(this, bestTarget);
-                    engine.audio.playShoot(1.2);
-                    this.recoil = 5;
-                    this.cooldown = this.maxCooldown;
+            // Fire (Only if aimed and cooldown ready)
+            if (this.cooldown <= 0 && this.spinSpeed > 0.6 && isAimed) {
+                engine.spawnProjectile(this, bestTarget);
+                engine.audio.playShoot(1.2);
+                this.recoil = 5;
+                this.cooldown = this.maxCooldown;
 
-                    // Effects: Sleek energy sparks
-                    const pos = engine.getScreenPos(this.gridPos.x, this.gridPos.y);
-                    const tipX = pos.x + Math.cos(this.rotation) * 20;
-                    const tipY = pos.y - pivotY + Math.sin(this.rotation) * 20;
-                    engine.particles.push(new ParticleEffect({x: tipX, y: tipY}, 0, '#60a5fa', {x:0,y:0}, 0.2, ParticleBehavior.FLOAT));
-                }
+                // Effects: Sleek energy sparks
+                const pos = engine.getScreenPos(this.gridPos.x, this.gridPos.y);
+                const tipX = pos.x + Math.cos(this.rotation) * 20;
+                const tipY = pos.y - pivotY + Math.sin(this.rotation) * 20;
+                engine.particles.push(new ParticleEffect({x: tipX, y: tipY}, 0, '#60a5fa', {x:0,y:0}, 0.2, ParticleBehavior.FLOAT));
             }
+        } else {
+            // Spin down if no target
+             this.spinSpeed *= 0.9;
         }
     }
 

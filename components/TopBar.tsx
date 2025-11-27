@@ -1,4 +1,5 @@
 
+
 import React from 'react';
 
 interface TopBarProps {
@@ -9,15 +10,21 @@ interface TopBarProps {
     debugMode: boolean;
     isPaused: boolean;
     timeScale: number;
+    musicVol: number;
+    sfxVol: number;
     onRestart: () => void;
     onPause: () => void;
     onTimeScale: () => void;
     onDebugToggle: () => void;
+    onAnimDebug?: () => void; // New prop
+    onMusicVolChange: (val: number) => void;
+    onSfxVolChange: (val: number) => void;
 }
 
 export const TopBar: React.FC<TopBarProps> = ({
     money, health, wave, nextWaveType, debugMode, isPaused, timeScale,
-    onRestart, onPause, onTimeScale, onDebugToggle
+    musicVol, sfxVol,
+    onRestart, onPause, onTimeScale, onDebugToggle, onAnimDebug, onMusicVolChange, onSfxVolChange
 }) => {
     return (
         <div className="absolute top-4 left-4 right-4 flex justify-between items-start pointer-events-none z-20">
@@ -66,17 +73,46 @@ export const TopBar: React.FC<TopBarProps> = ({
                 </div>
             </div>
             
-            {/* DEBUG TOGGLE */}
-            <div className="pointer-events-auto">
-                 <label className="flex items-center gap-2 bg-slate-900/90 text-xs text-slate-400 p-2 rounded border border-slate-700 cursor-pointer hover:bg-slate-800">
-                     <input 
-                        type="checkbox" 
-                        checked={debugMode} 
-                        onChange={onDebugToggle} 
-                        className="rounded bg-slate-700 border-slate-600 text-yellow-500 focus:ring-0"
-                     />
-                     <span>DEBUG MODE</span>
-                 </label>
+            <div className="pointer-events-auto flex flex-col gap-2 items-end">
+                {/* Audio Controls */}
+                <div className="bg-slate-900/90 backdrop-blur text-white p-3 rounded-xl shadow-2xl border border-slate-700 flex flex-col gap-2 w-48">
+                    <div className="flex items-center gap-2">
+                         <span className="text-xs text-slate-400 w-4">♪</span>
+                         <input 
+                            type="range" 
+                            min="0" max="1" step="0.1" 
+                            value={musicVol} 
+                            onChange={(e) => onMusicVolChange(parseFloat(e.target.value))}
+                            className="w-full h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                         />
+                    </div>
+                    <div className="flex items-center gap-2">
+                         <span className="text-xs text-slate-400 w-4">🔊</span>
+                         <input 
+                            type="range" 
+                            min="0" max="1" step="0.1" 
+                            value={sfxVol} 
+                            onChange={(e) => onSfxVolChange(parseFloat(e.target.value))}
+                            className="w-full h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-emerald-500"
+                         />
+                    </div>
+                </div>
+
+                {/* Debug Toggle */}
+                <div className="flex gap-2">
+                     <button onClick={onAnimDebug} className="bg-slate-900/90 text-xs text-purple-400 p-2 rounded border border-purple-500/50 hover:bg-slate-800">
+                         ANIM DEBUG
+                     </button>
+                     <label className="flex items-center gap-2 bg-slate-900/90 text-xs text-slate-400 p-2 rounded border border-slate-700 cursor-pointer hover:bg-slate-800">
+                         <input 
+                            type="checkbox" 
+                            checked={debugMode} 
+                            onChange={onDebugToggle} 
+                            className="rounded bg-slate-700 border-slate-600 text-yellow-500 focus:ring-0"
+                         />
+                         <span>DEBUG MODE</span>
+                     </label>
+                 </div>
             </div>
         </div>
     );

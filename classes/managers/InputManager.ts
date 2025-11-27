@@ -1,4 +1,5 @@
 
+
 import { GameEngine } from '../GameEngine';
 import { Vector2, GridPoint, EntityType, GRID_SIZE } from '../../types';
 import { toGrid } from '../../utils/isoMath';
@@ -47,28 +48,64 @@ export class InputManager {
 
   handleMouseDown(e: MouseEvent) {
     if (e.button !== 0) return; 
-    this.engine.audio.ensureContext();
-    if (!this.engine.gameState.gameActive) return;
-
-    // 1. Tower Selection (Only if NOT building)
-    if (!this.selectedTowerType) {
-      const hitEntity = this.getHitEntity(this.mouseScreenPos.x, this.mouseScreenPos.y);
-      if (hitEntity && hitEntity.type.startsWith('TOWER')) {
-          this.selectedEntityId = hitEntity.id;
-          if (this.engine.callbacks.onSelect) this.engine.callbacks.onSelect(hitEntity.id);
-          if (this.engine.callbacks.onBuild) this.engine.callbacks.onBuild(); 
-          this.engine.audio.playBuild();
-          return;
-      }
-    }
-
-    // 2. Build on Tile
-    if (this.hoverTile && this.selectedTowerType) {
-        this.engine.buildTower(this.hoverTile, this.selectedTowerType);
+    
+    // Preview Mode Click Handling
+    if (this.engine.previewMode) {
+        this.engine.handlePreviewClick(this.mouseScreenPos.x, this.mouseScreenPos.y);
         return;
     }
 
-    // 3. Clicked nothing
+    this.engine.audio.ensureContext();
+    if (!this.engine.gameState.gameActive) return;
+
+    // --- SELECTION LOGIC V2 ---
+    // User complaint: Hard to select tower, easier to accidentally build.
+    // Fix: Strict Grid Priority.
+
+    // 1. Is the mouse over a valid grid tile?
+    if (this.hoverTile) {
+        const { gx, gy } = this.hoverTile;
+
+        // Check if there is an Entity (Tower) on this tile specifically
+        // We use the grid coordinate to find it, which is 100% accurate for towers.
+        // We exclude Projectiles/Particles/Text.
+        const entityOnTile = this.engine.entities.find(e => 
+            e.gridPos.x === gx && 
+            e.gridPos.y === gy && 
+            e.type.startsWith('TOWER') // Strictly towers
+        );
+
+        if (entityOnTile) {
+            // USER INTENT: SELECT TOWER
+            // Even if Build Mode is active, clicking an existing tower should select it
+            // so they can upgrade/sell it.
+            this.selectedEntityId = entityOnTile.id;
+            
+            // Notify UI
+            if (this.engine.callbacks.onSelect) this.engine.callbacks.onSelect(entityOnTile.id);
+            if (this.engine.callbacks.onBuild) this.engine.callbacks.onBuild(); 
+            this.engine.audio.playBuild(); // Use generic click/interaction sound
+            return;
+        }
+
+        // 2. If no tower, are we in Build Mode?
+        if (this.selectedTowerType) {
+            // USER INTENT: BUILD
+            this.engine.buildTower(this.hoverTile, this.selectedTowerType);
+            return;
+        }
+    }
+
+    // 3. Fallback: Check Screen-Space Entity Hit (For flying enemies, etc)
+    // Only if we didn't interact with a tile logic above.
+    const hitEntity = this.getHitEntity(this.mouseScreenPos.x, this.mouseScreenPos.y);
+    if (hitEntity) {
+        this.selectedEntityId = hitEntity.id;
+        if (this.engine.callbacks.onSelect) this.engine.callbacks.onSelect(hitEntity.id);
+        return;
+    }
+
+    // 4. Clicked Empty Void -> Deselect
     this.deselectAll();
   }
 
@@ -103,10 +140,9 @@ export class InputManager {
          let visualY = pos.y;
          let radius = 30; 
 
+         // Adjust hit box for visuals
+         visualY -= ent.zHeight; 
          if (ent.type === EntityType.TOWER_SNIPER) visualY -= 30;
-         else if (ent.type === EntityType.TOWER_BASIC) visualY -= 20;
-         else if (ent.type === EntityType.TOWER_PULSE) visualY -= 20;
-         else if (ent.type === EntityType.TREE) visualY -= 15;
 
          const dx = sx - pos.x;
          const dy = sy - visualY;

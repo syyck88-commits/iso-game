@@ -1,4 +1,5 @@
 
+
 import { EnemyVariant, Vector2, ParticleBehavior } from '../../types';
 import { BaseEnemy } from './BaseEnemy';
 import { GameEngine } from '../GameEngine';
@@ -10,7 +11,7 @@ export class NormalEnemy extends BaseEnemy {
     
     // IK System
     legs: IKLeg[] = [];
-    initializedIK: boolean = false;
+    legOffsets: Vector2[] = [];
 
     constructor(path: Vector2[], wave: number) {
         super(path, wave, EnemyVariant.NORMAL);
@@ -19,6 +20,28 @@ export class NormalEnemy extends BaseEnemy {
         this.health = this.maxHealth;
         this.speed = 0.03 + (Math.min(20, wave) * 0.001);
         this.moneyValue = 15;
+
+        // Initialize Legs in Constructor
+        // 6 Legs
+        for(let i=0; i<6; i++) {
+            // Randomized IK params for organic feel
+            // Speed between 100ms and 150ms
+            const speedVar = 110 + Math.random() * 40; 
+            // Threshold variance
+            const threshVar = 14 + Math.random() * 4;
+            // Step height variance
+            const heightVar = 12 + Math.random() * 5;
+
+            this.legs.push(new IKLeg(0, 0, heightVar, threshVar, speedVar));
+            
+            // Randomize structural position offset per leg
+            // This prevents them from lining up perfectly
+            // REDUCED VARIANCE: +/- 2px as requested
+            this.legOffsets.push({
+                x: (Math.random() - 0.5) * 2,
+                y: (Math.random() - 0.5) * 2
+            });
+        }
     }
 
     onUpdate(dt: number, engine: GameEngine) {
@@ -29,6 +52,64 @@ export class NormalEnemy extends BaseEnemy {
                  engine.spawnParticle(this.gridPos, 0, '#7f1d1d');
             }
         }
+
+        // --- UPDATE IK LEGS (Logic Loop) ---
+        const pos = engine.getScreenPos(this.gridPos.x, this.gridPos.y);
+        const bodyY = pos.y - 14;
+
+        // Determine normalized movement vector for "Leading" steps
+        let dirX = 0;
+        let dirY = 0;
+        
+        if (this.pathIndex < this.path.length - 1) {
+            const next = this.path[this.pathIndex+1];
+            const dx = next.x - this.gridPos.x;
+            const dy = next.y - this.gridPos.y;
+            
+            // Convert grid delta to screen delta (approximate isometric projection)
+            // x = (dx - dy) * 26
+            // y = (dx + dy) * 13
+            const sx = (dx - dy) * 26;
+            const sy = (dx + dy) * 13;
+            
+            const len = Math.sqrt(sx*sx + sy*sy);
+            if (len > 0.001) {
+                dirX = sx / len;
+                dirY = sy / len;
+            }
+        }
+
+        const isGroupAMoving = this.legs[0].isStepping || this.legs[2].isStepping || this.legs[4].isStepping;
+        const isGroupBMoving = this.legs[1].isStepping || this.legs[3].isStepping || this.legs[5].isStepping;
+
+        this.legs.forEach((leg, i) => {
+            const isLeft = i > 2;
+            const row = i % 3; // 0=Front, 1=Mid, 2=Back
+            
+            // Calculate ideal foot position relative to body
+            const spreadX = isLeft ? -18 : 18;
+            const spreadY = (row - 1) * 12 + 10; // +10 puts legs visually on "ground" below center
+            
+            // Apply Lead based on row
+            // Front legs reach far ahead (35px), Mid (20px), Back (5px)
+            // This makes them look like they are pulling the body forward
+            const leadDist = row === 0 ? 35 : (row === 1 ? 20 : 5);
+            
+            const leadX = dirX * leadDist;
+            const leadY = dirY * leadDist;
+
+            // Apply Random Offset (Structural Variation)
+            const rndOffset = this.legOffsets[i];
+
+            const idealX = pos.x + spreadX + leadX + rndOffset.x;
+            const idealY = bodyY + spreadY + leadY + rndOffset.y;
+
+            // Gait Check
+            const isGroupA = (i % 2) === 0;
+            const canStep = isGroupA ? !isGroupBMoving : !isGroupAMoving;
+
+            leg.update(idealX, idealY, dt, canStep);
+        });
     }
 
     onDeathStart(engine: GameEngine) {
@@ -54,45 +135,12 @@ export class NormalEnemy extends BaseEnemy {
     drawModel(ctx: CanvasRenderingContext2D, pos: Vector2) {
         if (this.opacity <= 0) return;
 
-        // --- IK INITIALIZATION ---
-        if (!this.initializedIK) {
-            // 6 Legs
-            for(let i=0; i<6; i++) {
-                // Initialize legs at rough starting positions
-                // 0,1,2 = Right side, 3,4,5 = Left side
-                const isLeft = i > 2;
-                const offsetX = isLeft ? -15 : 15;
-                const offsetY = ((i % 3) - 1) * 10;
-                this.legs.push(new IKLeg(pos.x + offsetX, pos.y + offsetY, 10, 10, 0.2));
-            }
-            this.initializedIK = true;
-        }
-
         const bodyY = pos.y - 14;
         
-        // --- UPDATE LEGS ---
-        // Tripod Gait: Group A (0, 2, 4) and Group B (1, 3, 5) move alternately
-        const isGroupAMoving = this.legs[0].isStepping || this.legs[2].isStepping || this.legs[4].isStepping;
-        const isGroupBMoving = this.legs[1].isStepping || this.legs[3].isStepping || this.legs[5].isStepping;
-
+        // --- DRAW LEGS ---
         this.legs.forEach((leg, i) => {
             const isLeft = i > 2;
-            const row = i % 3; // 0=Front, 1=Mid, 2=Back
             
-            // Calculate ideal foot position relative to body
-            const spreadX = isLeft ? -18 : 18;
-            const spreadY = (row - 1) * 12 + 10; // +10 puts legs visually on "ground" below center
-            
-            const idealX = pos.x + spreadX;
-            const idealY = bodyY + spreadY;
-
-            // Gait Check
-            const isGroupA = (i % 2) === 0;
-            const canStep = isGroupA ? !isGroupBMoving : !isGroupAMoving;
-
-            leg.update(idealX, idealY, canStep);
-
-            // Draw Leg
             const rootX = pos.x + (isLeft ? -6 : 6);
             const rootY = bodyY; // Hip height
             

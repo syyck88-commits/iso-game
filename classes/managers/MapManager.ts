@@ -1,11 +1,12 @@
 
+
 import { GRID_SIZE, GridPoint, Vector2 } from '../../types';
 import { GameEngine } from '../GameEngine';
 import { Tree } from '../Entities';
 
 export class MapManager {
   engine: GameEngine;
-  grid: number[][] = []; // 0=grass, 1=path, 2=tower, 3=rock, 4=tree, 5=water
+  grid: number[][] = []; // 0=grass, 1=path, 2=tower, 3=rock, 4=tree, 5=water, 6=sand
   enemyPath: Vector2[] = [];
 
   constructor(engine: GameEngine) {
@@ -28,26 +29,26 @@ export class MapManager {
     
     // Procedural Path Generation (Random Walk from Left to Right)
     let cx = 0;
-    let cy = Math.floor(Math.random() * (GRID_SIZE - 6)) + 3; // Start middle-ish
+    let cy = Math.floor(Math.random() * (GRID_SIZE - 10)) + 5; // Start middle-ish
     
     const path: GridPoint[] = [{gx: cx, gy: cy}];
     const visited = new Set<string>();
     visited.add(`${cx},${cy}`);
 
     let failsafe = 0;
-    while(cx < GRID_SIZE - 1 && failsafe < 1000) {
+    while(cx < GRID_SIZE - 1 && failsafe < 2000) {
         failsafe++;
         
         const moves = [
-            {dx: 1, dy: 0, w: 10}, 
-            {dx: 0, dy: 1, w: 3},
-            {dx: 0, dy: -1, w: 3}
+            {dx: 1, dy: 0, w: 12}, // Bias forward
+            {dx: 0, dy: 1, w: 4},
+            {dx: 0, dy: -1, w: 4}
         ];
         
         const validMoves = moves.filter(m => {
             const nx = cx + m.dx;
             const ny = cy + m.dy;
-            return nx >= 0 && nx < GRID_SIZE && ny >= 1 && ny < GRID_SIZE - 1 && !visited.has(`${nx},${ny}`);
+            return nx >= 0 && nx < GRID_SIZE && ny >= 2 && ny < GRID_SIZE - 2 && !visited.has(`${nx},${ny}`);
         });
 
         if (validMoves.length === 0) break;
@@ -85,19 +86,11 @@ export class MapManager {
   }
 
   private generateDecorations() {
-    // Lake
-    const lakeX = Math.floor(Math.random() * (GRID_SIZE - 4)) + 2;
-    const lakeY = Math.floor(Math.random() * (GRID_SIZE - 4)) + 2;
-    for(let ly = lakeY; ly < lakeY + 3; ly++) {
-        for(let lx = lakeX; lx < lakeX + 3; lx++) {
-            if (Math.random() > 0.3 && this.grid[ly][lx] === 0) {
-                this.grid[ly][lx] = 5; // Water
-            }
-        }
-    }
+    // NOTE: Water and Sand generation disabled by request.
+    // To re-enable, uncomment the previous logic here.
 
-    // Trees and Rocks
-    for(let i=0; i<30; i++) {
+    // Trees and Rocks (More density)
+    for(let i=0; i<50; i++) {
         const rx = Math.floor(Math.random() * GRID_SIZE);
         const ry = Math.floor(Math.random() * GRID_SIZE);
         if (this.grid[ry][rx] === 0) {
@@ -113,7 +106,7 @@ export class MapManager {
 
   isBuildable(x: number, y: number): boolean {
       if (x < 0 || x >= GRID_SIZE || y < 0 || y >= GRID_SIZE) return false;
-      return this.grid[y][x] === 0;
+      return this.grid[y][x] === 0 || this.grid[y][x] === 6; // Buildable on Grass and Sand
   }
 
   setTile(x: number, y: number, type: number) {

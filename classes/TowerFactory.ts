@@ -18,7 +18,7 @@ export class TowerFactory {
     }
 
     // Static drawer for UI previews / ghost buildings
-    static drawPreview(ctx: CanvasRenderingContext2D, pos: Vector2, type: EntityType) {
+    static drawPreview(ctx: CanvasRenderingContext2D, pos: Vector2, type: EntityType, rotation?: number) {
         // Create a dummy instance to render
         // This is cheap enough for UI 
         let tower: BaseTower;
@@ -33,7 +33,10 @@ export class TowerFactory {
         tower.constructionScale = 1.0;
         
         // Preset rotations for preview
-        if (type === EntityType.TOWER_BASIC || type === EntityType.TOWER_SNIPER || type === EntityType.TOWER_LASER) {
+        if (rotation !== undefined) {
+             tower.rotation = rotation;
+        } else if (type === EntityType.TOWER_BASIC || type === EntityType.TOWER_SNIPER || type === EntityType.TOWER_LASER) {
+             // Default isometric-friendly angle if not specified
              tower.rotation = -Math.PI / 4;
         }
         

@@ -1,4 +1,5 @@
 
+
 export class AudioCore {
   ctx: AudioContext | null = null;
   masterGain: GainNode | null = null;
@@ -14,6 +15,9 @@ export class AudioCore {
   delayNode: DelayNode | null = null;
   delayFeedback: GainNode | null = null;
   delayGain: GainNode | null = null;
+
+  // State
+  private _userMusicVolume: number = 0.35; // Tracks the intended user volume (scaled 0-0.35)
 
   constructor() {
     try {
@@ -46,7 +50,7 @@ export class AudioCore {
 
       // 2. Music Bus (Background, duckable)
       this.musicBus = this.ctx.createGain();
-      this.musicBus.gain.value = 0.35; // Lower default music volume to let SFX shine
+      this.musicBus.gain.value = this._userMusicVolume; 
       this.musicBus.connect(this.compressor);
 
       // --- FX BUSES SETUP ---
@@ -114,18 +118,42 @@ export class AudioCore {
       return this.ctx ? this.ctx.currentTime : 0;
   }
 
+  setMusicVolume(pct: number) {
+      if (!this.musicBus || !this.ctx) return;
+      // Music bus usually sits at 0.35 max to balance with SFX
+      const targetGain = Math.max(0, Math.min(1, pct)) * 0.35;
+      this._userMusicVolume = targetGain; // Update stored user volume
+      
+      // Apply immediately
+      this.musicBus.gain.cancelScheduledValues(this.ctx.currentTime);
+      this.musicBus.gain.setValueAtTime(targetGain, this.ctx.currentTime);
+  }
+
+  setSfxVolume(pct: number) {
+      if (!this.sfxBus || !this.ctx) return;
+      const targetGain = Math.max(0, Math.min(1, pct));
+      this.sfxBus.gain.setValueAtTime(targetGain, this.ctx.currentTime);
+  }
+
   // Action Logic: Duck the music volume briefly for loud events
   triggerDuck(intensity: number = 0.5, duration: number = 0.2) {
       if (!this.musicBus || !this.ctx) return;
       
+      // If user has muted music, do not attempt to duck/restore
+      if (this._userMusicVolume < 0.001) return;
+
       const t = this.ctx.currentTime;
       // Dip down
       this.musicBus.gain.cancelScheduledValues(t);
       this.musicBus.gain.setValueAtTime(this.musicBus.gain.value, t);
-      this.musicBus.gain.linearRampToValueAtTime(0.1, t + 0.05);
       
-      // Return to normal
-      this.musicBus.gain.exponentialRampToValueAtTime(0.35, t + 0.05 + duration);
+      // Duck to a percentage of the USER volume
+      const duckedVol = this._userMusicVolume * 0.3; 
+      
+      this.musicBus.gain.linearRampToValueAtTime(duckedVol, t + 0.05);
+      
+      // Return to USER volume (not hardcoded 0.35)
+      this.musicBus.gain.exponentialRampToValueAtTime(this._userMusicVolume, t + 0.05 + duration);
   }
 
   async renderToBuffer(

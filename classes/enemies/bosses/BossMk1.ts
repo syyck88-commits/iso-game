@@ -1,4 +1,5 @@
 
+
 import { EnemyVariant, Vector2, ParticleBehavior } from '../../../types';
 import { BossEnemy } from '../BossEnemy';
 import { GameEngine } from '../../GameEngine';
@@ -14,10 +15,13 @@ export class BossMk1 extends BossEnemy {
     
     // IK System
     legs: IKLeg[] = [];
-    initializedIK: boolean = false;
 
     constructor(path: Vector2[], wave: number) {
         super(path, wave, EnemyVariant.BOSS_MK1, 15.0, 0.35, 300); 
+        
+        // Init Legs (2 Large Walker Legs)
+        this.legs.push(new IKLeg(0, 0, 20, 20, 300)); // Slower steps for boss
+        this.legs.push(new IKLeg(0, 0, 20, 20, 300));
     }
 
     update(dt: number, engine: GameEngine) {
@@ -35,6 +39,13 @@ export class BossMk1 extends BossEnemy {
 
         super.update(dt, engine);
         this.updateEffects(dt, engine);
+        
+        // --- IK UPDATE ---
+        const pos = engine.getScreenPos(this.gridPos.x, this.gridPos.y);
+        const leftStep = this.legs[0].isStepping;
+        const rightStep = this.legs[1].isStepping;
+        this.legs[0].update(pos.x - 40, pos.y + 20, dt, !rightStep);
+        this.legs[1].update(pos.x + 40, pos.y + 20, dt, !leftStep);
     }
     
     updateEffects(dt: number, engine: GameEngine) {
@@ -48,15 +59,40 @@ export class BossMk1 extends BossEnemy {
         if (this.smokeTimer > smokeRate) {
             this.smokeTimer = 0;
             const pos = engine.getScreenPos(this.gridPos.x, this.gridPos.y);
-            const smokeColor = isDamaged ? 'rgba(30, 30, 30, 0.6)' : 'rgba(240, 240, 240, 0.3)';
-            const zHeight = 100; 
-            const riseSpeed = isDamaged ? -2.0 : -1.5; 
+            // More transparent smoke
+            const smokeColor = isDamaged ? 'rgba(30, 30, 30, 0.6)' : 'rgba(200, 200, 200, 0.4)';
+            
+            // Adjusted zHeight to be higher up (visually aligns with pipe tips)
+            const zHeight = 98; 
+            
+            // "Ejection" speed - bursts out fast (-2 to -4), then slows down via drag in Particle.ts
+            const riseSpeed = -2.0 - Math.random() * 2.0; 
+            
+            // Fix: Smoke spawn position aligned with visual pipes. 
+            // Model draws pipes at +/- 10. Previous +/- 14 was too wide.
+            const spreadX = 2; 
 
-            const p1 = new ParticleEffect({x: pos.x - 20, y: pos.y}, zHeight, smokeColor, {x: (Math.random()-0.5), y: riseSpeed}, 2.5, ParticleBehavior.FLOAT);
+            const p1 = new ParticleEffect(
+                {x: pos.x - 10 + (Math.random()-0.5)*spreadX, y: pos.y}, 
+                zHeight, 
+                smokeColor, 
+                {x: (Math.random()-0.5), y: riseSpeed}, 
+                6.0, // Lasts much longer
+                ParticleBehavior.FLOAT,
+                'SMOKE' // Explicitly use smoke style
+            );
             p1.size = isDamaged ? 10 : 6;
             engine.particles.push(p1);
             
-            const p2 = new ParticleEffect({x: pos.x + 20, y: pos.y}, zHeight, smokeColor, {x: (Math.random()-0.5), y: riseSpeed}, 2.5, ParticleBehavior.FLOAT);
+            const p2 = new ParticleEffect(
+                {x: pos.x + 10 + (Math.random()-0.5)*spreadX, y: pos.y}, 
+                zHeight, 
+                smokeColor, 
+                {x: (Math.random()-0.5), y: riseSpeed}, 
+                6.0, 
+                ParticleBehavior.FLOAT,
+                'SMOKE'
+            );
             p2.size = isDamaged ? 10 : 6;
             engine.particles.push(p2);
         }
@@ -149,22 +185,6 @@ export class BossMk1 extends BossEnemy {
         if (this.isDying) {
             renderPos.x += (Math.random() - 0.5) * 4;
             renderPos.y += (Math.random() - 0.5) * 4;
-        }
-
-        // --- IK INIT ---
-        if (!this.initializedIK) {
-            this.legs.push(new IKLeg(pos.x - 30, pos.y + 20, 20, 20, 0.08)); // Slower, heavier steps
-            this.legs.push(new IKLeg(pos.x + 30, pos.y + 20, 20, 20, 0.08));
-            this.initializedIK = true;
-        }
-
-        // --- IK UPDATE ---
-        // Only update legs if not dying
-        if (!this.isDying) {
-            const leftStep = this.legs[0].isStepping;
-            const rightStep = this.legs[1].isStepping;
-            this.legs[0].update(pos.x - 40, pos.y + 20, !rightStep);
-            this.legs[1].update(pos.x + 40, pos.y + 20, !leftStep);
         }
 
         const time = Date.now() / 200 + this.wobbleOffset;

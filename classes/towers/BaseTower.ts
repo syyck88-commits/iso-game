@@ -3,6 +3,7 @@
 import { EntityType, Vector2 } from '../../types';
 import { BaseEntity } from '../BaseEntity';
 import { GameEngine } from '../GameEngine';
+import { BaseEnemy } from '../enemies/BaseEnemy';
 
 export abstract class BaseTower extends BaseEntity {
   range: number = 3;
@@ -14,6 +15,9 @@ export abstract class BaseTower extends BaseEntity {
   targetId: string | null = null;
   recoil: number = 0; 
   constructionScale: number = 0; // Animation
+  
+  // Rotation Logic
+  turnSpeed: number = 5; // Radians per second
 
   // Stats & Economy
   killCount: number = 0;
@@ -21,8 +25,6 @@ export abstract class BaseTower extends BaseEntity {
 
   constructor(type: EntityType, x: number, y: number) {
     super(type, x, y);
-    // Initial cost tracking usually handled by factory/engine, 
-    // but we track upgrades here.
   }
 
   abstract getUpgradeCost(): number;
@@ -36,6 +38,9 @@ export abstract class BaseTower extends BaseEntity {
   }
 
   abstract performUpgradeStats(): void;
+  
+  // Debug / Preview firing
+  abstract forceFire(target: BaseEnemy, engine: GameEngine): void;
 
   getSellValue(): number {
       return Math.floor(this.totalSpent * 0.7);
@@ -63,8 +68,23 @@ export abstract class BaseTower extends BaseEntity {
       const dy = pos.y - this.gridPos.y;
       return Math.sqrt(dx*dx + dy*dy);
   }
+  
+  protected rotateTowards(targetAngle: number, dt: number, tolerance: number = 0.1): boolean {
+      let diff = targetAngle - this.rotation;
+      while (diff > Math.PI) diff -= Math.PI * 2;
+      while (diff < -Math.PI) diff += Math.PI * 2;
+      
+      const maxTurn = this.turnSpeed * (dt / 1000);
+      
+      if (Math.abs(diff) <= maxTurn) {
+          this.rotation = targetAngle;
+          return true;
+      } else {
+          this.rotation += Math.sign(diff) * maxTurn;
+          return Math.abs(diff) < tolerance;
+      }
+  }
 
-  // Abstract methods for subclasses
   abstract onTowerUpdate(dt: number, engine: GameEngine): void;
   abstract drawModel(ctx: CanvasRenderingContext2D, screenPos: Vector2): void;
 
