@@ -1,5 +1,5 @@
 
-export type MusicState = 'IDLE' | 'COMBAT' | 'BOSS' | 'PANIC';
+export type MusicState = 'IDLE' | 'COMBAT' | 'BOSS' | 'PANIC' | 'INTRO';
 
 export interface AudioTrack {
   name: string;

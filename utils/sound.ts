@@ -5,7 +5,7 @@ import { Sequencer } from './audio/Sequencer';
 import { SFX } from './audio/SFX';
 import { MusicState } from './audio/types';
 import { Tracker } from './audio/Tracker';
-import { TRACK_DATA_BOSS } from './audio/tracks/BossTrack';
+import { TRACK_LIBRARY } from './audio/TrackLibrary';
 
 export class SoundEngine {
   core: AudioCore;
@@ -14,6 +14,11 @@ export class SoundEngine {
   tracker: Tracker;
   sfx: SFX;
   isInitialized = false;
+
+  // Track Cycling State
+  private currentMusicState: MusicState = 'IDLE';
+  private idleTrackIndex: number = 0;
+  private readonly IDLE_TRACK_KEYS = ['LEVEL_1', 'LEVEL_2', 'LEVEL_3', 'LEVEL_4'];
 
   constructor() {
       this.core = new AudioCore();
@@ -95,26 +100,54 @@ export class SoundEngine {
 
   ensureContext() {
       this.core.resume();
-      if (this.sequencer.isPlaying) return;
-      // Default to IDLE music start if not playing
-      // Note: Tracker is manually started via setMusicState
-      if (!this.sequencer.isPlaying) {
-          this.sequencer.start();
+      // If we are initialized but nothing is playing, kickstart the intro or idle track
+      if (this.isInitialized && !this.tracker.isPlayingState && !this.sequencer.isPlaying) {
+          // Default to INTRO on fresh load if nothing is specified
+          this.setMusicState('INTRO');
       }
   }
 
-  setMusicState(state: MusicState) {
-      if (state === 'BOSS' || state === 'PANIC') {
-          // Switch to Tracker Engine (Boss Track)
-          if (this.sequencer.isPlaying) {
-              this.sequencer.isPlaying = false; // Soft stop legacy engine
-          }
-          this.tracker.playTrack(TRACK_DATA_BOSS);
-      } else {
-          // Switch to Standard Engine (Legacy) for IDLE and COMBAT (until new track provided)
+  setMusicState(newState: MusicState) {
+      // Prevent redundant switching if state hasn't changed
+      if (this.currentMusicState === newState) return;
+
+      const previousState = this.currentMusicState;
+      this.currentMusicState = newState;
+
+      // --- LOGIC FOR NEW STATE ---
+      if (newState === 'BOSS' || newState === 'PANIC') {
+          // 1. BOSS MODE: Tracker Engine (Boss Theme)
+          if (this.sequencer.isPlaying) this.sequencer.stop();
+          this.tracker.playTrack(TRACK_LIBRARY.BOSS.data);
+      } 
+      else if (newState === 'COMBAT') {
+          // 2. COMBAT MODE: Sequencer Engine (Legacy Phonk)
           this.tracker.stop();
-          this.sequencer.setState(state);
+          this.sequencer.setState('COMBAT');
           if (!this.sequencer.isPlaying) this.sequencer.start();
+      } 
+      else if (newState === 'INTRO') {
+          // 3. INTRO MODE: Tracker Engine (Special Intro Track)
+          if (this.sequencer.isPlaying) this.sequencer.stop();
+          this.tracker.playTrack(TRACK_LIBRARY.INTRO.data);
+      }
+      else if (newState === 'IDLE') {
+          // 4. IDLE MODE: Tracker Engine (Cycling Levels)
+          if (this.sequencer.isPlaying) this.sequencer.stop();
+
+          // Select current track in cycle
+          // @ts-ignore
+          const trackKey = this.IDLE_TRACK_KEYS[this.idleTrackIndex];
+          // @ts-ignore
+          const trackData = TRACK_LIBRARY[trackKey].data;
+          
+          this.tracker.playTrack(trackData);
+
+          // Increment cycle index ONLY if we are coming from a non-idle state (e.g. finishing a wave)
+          // This prevents the track from skipping if setMusicState('IDLE') is called redundantly
+          if (previousState === 'COMBAT' || previousState === 'BOSS' || previousState === 'PANIC') {
+              this.idleTrackIndex = (this.idleTrackIndex + 1) % this.IDLE_TRACK_KEYS.length;
+          }
       }
   }
 

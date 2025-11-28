@@ -277,7 +277,10 @@ export class GameEngine {
     this.timeScale = 1.0;
     this.paused = false;
     this.input.deselectAll();
-    this.audio.setMusicState('IDLE');
+    
+    // Set to INTRO on restart, not IDLE
+    this.audio.setMusicState('INTRO');
+    
     this.renderer.prerenderMap();
   }
 
@@ -347,6 +350,9 @@ export class GameEngine {
         this.audio.setMusicState('BOSS');
     } else if (activeEnemies.length > 0) {
         this.audio.setMusicState('COMBAT');
+    } else if (this.gameState.wave === 1 && this.gameState.gameActive) {
+        // Special case: Playing 'INTRO' when sitting on Wave 1 before start
+        this.audio.setMusicState('INTRO');
     } else {
         this.audio.setMusicState('IDLE');
     }
