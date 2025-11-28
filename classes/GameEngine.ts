@@ -38,8 +38,30 @@ export class GameEngine {
   actions: ActionSystem;
   preview: PreviewSystem;
 
-  entities: BaseEntity[] = [];
-  particles: ParticleEffect[] = [];
+  // Backing fields for main game state
+  private _entities: BaseEntity[] = [];
+  private _particles: ParticleEffect[] = [];
+  
+  // Context-Aware Accessors
+  // These redirect to the PreviewSystem when it is active, ensuring that
+  // all entity logic (spawning particles, finding targets) works within the preview context automatically.
+  get entities(): BaseEntity[] {
+      if (this.preview && this.preview.active) return this.preview.entities;
+      return this._entities;
+  }
+  set entities(v: BaseEntity[]) {
+      if (this.preview && this.preview.active) this.preview.entities = v;
+      else this._entities = v;
+  }
+
+  get particles(): ParticleEffect[] {
+      if (this.preview && this.preview.active) return this.preview.particles;
+      return this._particles;
+  }
+  set particles(v: ParticleEffect[]) {
+      if (this.preview && this.preview.active) this.preview.particles = v;
+      else this._particles = v;
+  }
   
   gameState: GameState = {
     money: 120,
@@ -126,6 +148,8 @@ export class GameEngine {
     }
 
     // Update all entities
+    // Note: We access _entities directly here to avoid getter overhead in main loop if desired, 
+    // but using this.entities is safer for consistency.
     [...this.entities].forEach(ent => ent.update(dt, this));
     
     // Update particles
@@ -232,8 +256,8 @@ export class GameEngine {
 
   // --- ACTIONS DELEGATION ---
   restartGame() {
-    this.entities = [];
-    this.particles = [];
+    this._entities = [];
+    this._particles = [];
     this.map.generate();
     this.gameState = { money: 120, wave: 1, health: 20, gameActive: true };
     this.waves.reset();
@@ -264,9 +288,9 @@ export class GameEngine {
 
   removeEntity(id: string) {
     if (this.preview.active) {
-        this.preview.entities = this.preview.entities.filter(e => e.id !== id);
+        this.preview.removeEntity(id);
     } else {
-        this.entities = this.entities.filter(e => e.id !== id);
+        this._entities = this._entities.filter(e => e.id !== id);
         if (this.input.selectedEntityId === id) {
              this.input.selectedEntityId = null;
              if (this.callbacks.onSelect) this.callbacks.onSelect(null);
@@ -278,7 +302,7 @@ export class GameEngine {
     if (this.preview.active) {
         this.preview.particles = this.preview.particles.filter(p => p.id !== id);
     } else {
-        this.particles = this.particles.filter(p => p.id !== id);
+        this._particles = this._particles.filter(p => p.id !== id);
     }
   }
   
