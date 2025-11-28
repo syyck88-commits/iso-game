@@ -29,6 +29,7 @@ interface TopBarProps {
     onTimeScale: () => void;
     onDebugToggle: () => void;
     onAnimDebug?: () => void; 
+    onMusicDebug?: () => void; // New prop
     onMusicVolChange: (val: number) => void;
     onSfxVolChange: (val: number) => void;
 }
@@ -36,7 +37,7 @@ interface TopBarProps {
 export const TopBar: React.FC<TopBarProps> = ({
     money, health, wave, nextWaveType, debugMode, isPaused, timeScale,
     musicVol, sfxVol,
-    onRestart, onPause, onTimeScale, onDebugToggle, onAnimDebug, onMusicVolChange, onSfxVolChange
+    onRestart, onPause, onTimeScale, onDebugToggle, onAnimDebug, onMusicDebug, onMusicVolChange, onSfxVolChange
 }) => {
     
     // Calculate potential interest
@@ -164,7 +165,14 @@ export const TopBar: React.FC<TopBarProps> = ({
                         onMouseEnter={playHover}
                         className="bg-black/40 text-[10px] text-purple-400 px-2 py-1 rounded border border-purple-900/30 hover:bg-purple-900/20 transition-colors"
                      >
-                         VIEWER
+                         ANIM
+                     </button>
+                     <button 
+                        onClick={() => { playClick(); if(onMusicDebug) onMusicDebug(); }}
+                        onMouseEnter={playHover}
+                        className="bg-black/40 text-[10px] text-emerald-400 px-2 py-1 rounded border border-emerald-900/30 hover:bg-emerald-900/20 transition-colors"
+                     >
+                         MUSIC
                      </button>
                      <label 
                         onMouseEnter={playHover}

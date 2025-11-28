@@ -76,6 +76,7 @@ export class GameEngine {
   
   // Debug
   debugMode: boolean = false;
+  musicDebugMode: boolean = false;
   
   constructor(canvas: HTMLCanvasElement, callbacks: EngineCallbacks = {}) {
     this.canvas = canvas;
@@ -114,6 +115,9 @@ export class GameEngine {
   setPreviewMode(active: boolean) { this.preview.setMode(active); }
   spawnPreviewEntity(variant: string) { this.preview.spawnEntity(variant); }
   handlePreviewClick(x: number, y: number) { this.preview.handleClick(x, y); }
+
+  // Expose tracker for debug UI
+  get tracker() { return this.audio.tracker; }
 
   update(rawDt: number) {
     if (this.preview.active) {
@@ -328,6 +332,9 @@ export class GameEngine {
   setSfxVolume(v: number) { this.audio.setSfxVolume(v); }
 
   private updateAudioState() {
+    // If music debugger is active, stop automatic state changes
+    if (this.musicDebugMode) return;
+    
     const activeEnemies = this.entities.filter(e => e.type === EntityType.ENEMY_MINION) as BaseEnemy[];
     const hasBoss = activeEnemies.some(e => e.variant.startsWith('BOSS'));
     

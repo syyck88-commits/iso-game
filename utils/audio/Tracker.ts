@@ -11,11 +11,17 @@ interface Note {
     dur: number;
 }
 
-interface Track {
+export interface Track {
     id: number;
     notes: Note[];
     ptr: number;
-    settings: any;
+    settings: {
+        inst: string;
+        vol: number;
+        muted: boolean;
+        pitch: number;
+        delay?: number;
+    };
 }
 
 export class Tracker {
@@ -268,6 +274,58 @@ export class Tracker {
             this.tracks[id] = { id, notes, ptr: 0, settings };
         });
     }
+
+    // --- LIVE TUNING METHODS ---
+
+    public setBpm(newBpm: number) {
+        this.bpm = newBpm;
+        this.tickRate = 60 / (this.bpm * PPQ);
+    }
+
+    public setChannelVolume(id: number, vol: number) {
+        if (this.tracks[id]) {
+            this.tracks[id].settings.vol = vol;
+        }
+    }
+
+    public setChannelMute(id: number, muted: boolean) {
+        if (this.tracks[id]) {
+            this.tracks[id].settings.muted = muted;
+        }
+    }
+
+    public setChannelInstrument(id: number, inst: string) {
+        if (this.tracks[id]) {
+            this.tracks[id].settings.inst = inst;
+        }
+    }
+
+    public setChannelPitch(id: number, pitch: number) {
+        if (this.tracks[id]) {
+            this.tracks[id].settings.pitch = pitch;
+        }
+    }
+
+    public getTrackState() {
+        // Return a clean object for the UI
+        const channels: any[] = [];
+        Object.values(this.tracks).forEach(t => {
+            channels.push({
+                id: t.id,
+                inst: t.settings.inst,
+                vol: t.settings.vol,
+                muted: t.settings.muted,
+                pitch: t.settings.pitch
+            });
+        });
+        return {
+            bpm: this.bpm,
+            channels: channels.sort((a,b) => a.id - b.id),
+            instruments: Array.from(this.buffers.keys())
+        };
+    }
+
+    public get isPlayingState() { return this.isPlaying; }
 
     // --- BAKING SAMPLES ---
     

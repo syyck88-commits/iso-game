@@ -31,6 +31,10 @@ export class Sequencer {
       this.scheduler();
   }
 
+  stop() {
+      this.isPlaying = false;
+  }
+
   setState(state: MusicState) {
       if (this.currentState === state) return;
       
@@ -61,8 +65,13 @@ export class Sequencer {
       if (!this.core.ctx) return;
 
       while (this.nextNoteTime < this.core.currentTime + this.scheduleAheadTime) {
-          this.scheduleNote(this.current16thNote, this.nextNoteTime);
-          this.nextNote();
+          if (this.isPlaying) {
+              this.scheduleNote(this.current16thNote, this.nextNoteTime);
+              this.nextNote();
+          } else {
+              // Should break if not playing, but strict checking helps
+              break;
+          }
       }
       
       if (this.isPlaying) {

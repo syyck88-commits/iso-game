@@ -11,6 +11,7 @@ import { BuildMenu } from './components/BuildMenu';
 import { TowerPanel } from './components/TowerPanel';
 import { EnemyPanel } from './components/EnemyPanel';
 import { GameOver } from './components/GameOver';
+import { MusicDebugger } from './components/MusicDebugger';
 
 // --- NEW ANIMATION DEBUG PANEL ---
 const AnimationPanel: React.FC<{ 
@@ -117,7 +118,7 @@ const App: React.FC = () => {
   const [nextWaveType, setNextWaveType] = useState<string>('NORMAL');
   
   // View Mode
-  const [viewMode, setViewMode] = useState<'GAME' | 'ANIM_DEBUG'>('GAME');
+  const [viewMode, setViewMode] = useState<'GAME' | 'ANIM_DEBUG' | 'MUSIC_DEBUG'>('GAME');
 
   const addLog = (msg: string) => {
       setStatusLog(prev => {
@@ -347,6 +348,18 @@ const App: React.FC = () => {
           engineRef.current.setPreviewMode(false);
       }
   }
+
+  const handleMusicDebugToggle = () => {
+      if (!engineRef.current) return;
+      
+      if (viewMode === 'MUSIC_DEBUG') {
+          setViewMode('GAME');
+          engineRef.current.musicDebugMode = false; // Allow game logic to resume audio control
+      } else {
+          setViewMode('MUSIC_DEBUG');
+          engineRef.current.musicDebugMode = true; // Prevent game logic from overriding audio
+      }
+  }
   
   const handlePreviewSelect = (variant: string) => {
       if (!engineRef.current) return;
@@ -367,8 +380,13 @@ const App: React.FC = () => {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
         if (loadingState !== 'READY') return;
-        if (viewMode === 'ANIM_DEBUG') {
-            if (e.code === 'Escape') handleAnimDebugToggle();
+        if (viewMode === 'ANIM_DEBUG' || viewMode === 'MUSIC_DEBUG') {
+            if (e.code === 'Escape') {
+                if (viewMode === 'MUSIC_DEBUG' && engineRef.current) {
+                    engineRef.current.musicDebugMode = false;
+                }
+                setViewMode('GAME');
+            }
             return;
         }
 
@@ -441,6 +459,10 @@ const App: React.FC = () => {
         {viewMode === 'ANIM_DEBUG' && (
             <AnimationPanel onSelect={handlePreviewSelect} onClose={handleAnimDebugToggle} />
         )}
+
+        {viewMode === 'MUSIC_DEBUG' && (
+            <MusicDebugger onClose={handleMusicDebugToggle} />
+        )}
       
         {viewMode === 'GAME' && (
         <>
@@ -459,6 +481,7 @@ const App: React.FC = () => {
                 onTimeScale={handleTimeScale}
                 onDebugToggle={handleDebugToggle}
                 onAnimDebug={handleAnimDebugToggle}
+                onMusicDebug={handleMusicDebugToggle}
                 onMusicVolChange={handleMusicVolume}
                 onSfxVolChange={handleSfxVolume}
             />
