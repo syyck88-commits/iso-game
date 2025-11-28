@@ -1,5 +1,5 @@
 
-import { EntityType, Vector2, ParticleBehavior, DamageType } from '../types';
+import { EntityType, Vector2, ParticleBehavior, DamageType, EnemyVariant } from '../types';
 import { BaseEntity } from './BaseEntity';
 import { GameEngine } from './GameEngine';
 import { BaseEnemy } from './enemies/BaseEnemy';
@@ -62,10 +62,20 @@ export class Projectile extends BaseEntity {
             }
         }
 
+        // --- AUDIO FEEDBACK ---
+        // Determine sound based on enemy type
+        if (this.target.variant === EnemyVariant.TANK || 
+            this.target.variant === EnemyVariant.MECH || 
+            this.target.variant === EnemyVariant.PHALANX || 
+            this.target.variant.includes('BOSS')) {
+            engine.audio.playImpactMetal();
+        } else {
+            engine.audio.playImpactOrganic();
+        }
+
         engine.spawnHitEffect(this.target.gridPos);
         engine.removeEntity(this.id);
         
-        // Floating text is now handled inside BaseEnemy.takeDamage
     } else {
         this.gridPos.x += (dx / dist) * moveDist;
         this.gridPos.y += (dy / dist) * moveDist;
@@ -88,11 +98,6 @@ export class Projectile extends BaseEntity {
 
   draw(ctx: CanvasRenderingContext2D, pos: Vector2) {
       if (this.isRailgun) {
-          // Calculate angle for drawing direction
-          // Screen Space velocity vector approximation
-          // We don't have screen prev pos easily accessible without recalc, 
-          // so we simulate it or just draw a "slug" shape rotated towards target
-          
           // Simple elongated glow for Railgun
           ctx.save();
           ctx.translate(pos.x, pos.y);

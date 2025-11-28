@@ -1,5 +1,4 @@
 
-
 import { AudioCore } from './audio/AudioCore';
 import { Instruments } from './audio/Instruments';
 import { Sequencer } from './audio/Sequencer';
@@ -33,16 +32,16 @@ export class SoundEngine {
 
       log("Starting Sound Engine Initialization...");
       
-      // Instruments (7) + SFX (17) = 24 steps
+      // Instruments (7) + SFX (21) = 28 steps
       let completed = 0;
-      const totalSteps = 24;
+      const totalSteps = 28;
       
       const updateProgress = () => {
           completed++;
           if (onProgress) onProgress((completed / totalSteps) * 100);
       };
 
-      const waitFrame = () => new Promise(resolve => setTimeout(resolve, 20)); // Faster load
+      const waitFrame = () => new Promise(resolve => setTimeout(resolve, 15)); // Faster load
 
       // --- INSTRUMENTS ---
       log("Queueing Instruments...");
@@ -64,6 +63,10 @@ export class SoundEngine {
       await this.sfx.initStep('shoot', log); updateProgress(); await waitFrame();
       await this.sfx.initStep('shoot_heavy', log); updateProgress(); await waitFrame();
       await this.sfx.initStep('ui_click', log); updateProgress(); await waitFrame();
+      await this.sfx.initStep('ui_hover', log); updateProgress(); await waitFrame();
+      await this.sfx.initStep('ui_error', log); updateProgress(); await waitFrame();
+      await this.sfx.initStep('impact_metal', log); updateProgress(); await waitFrame();
+      await this.sfx.initStep('impact_organic', log); updateProgress(); await waitFrame();
       
       await this.sfx.initStep('cancel', log); updateProgress(); await waitFrame();
       await this.sfx.initStep('plasma', log); updateProgress(); await waitFrame();
@@ -99,6 +102,10 @@ export class SoundEngine {
   playExplosion(size: 'small' | 'medium' | 'large' = 'medium') { this.sfx.explosion(size); }
   playGold() { this.sfx.gold(); }
   playBuild() { this.sfx.build(); }
+  playHover() { this.sfx.hover(); }
+  playError() { this.sfx.error(); }
+  playImpactMetal() { this.sfx.impactMetal(); }
+  playImpactOrganic() { this.sfx.impactOrganic(); }
   playUpgrade() { this.sfx.upgrade(); }
   playCancel() { this.sfx.cancel(); }
   playHit() { this.sfx.hit(); }

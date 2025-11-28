@@ -220,6 +220,11 @@ const App: React.FC = () => {
     });
 
     engineRef.current = engine;
+    
+    // EXPOSE TO WINDOW FOR UI AUDIO
+    // @ts-ignore
+    window.engineRef = engine;
+
     addLog('Video Engine Initialized.');
     
     const initGame = async () => {
@@ -257,6 +262,8 @@ const App: React.FC = () => {
       isMountedRef.current = false;
       if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
       window.removeEventListener('resize', engine.renderer.resize);
+      // @ts-ignore
+      delete window.engineRef;
     };
   }, []);
 

@@ -3,6 +3,22 @@ import React, { useState, useRef, useEffect } from 'react';
 import { EntityType } from '../types';
 import { TowerFactory } from '../classes/TowerFactory';
 
+// Access audio from global scope for UI
+const playHover = () => {
+    // @ts-ignore
+    if(window.engineRef) window.engineRef.audio.playHover();
+};
+
+const playClick = () => {
+    // @ts-ignore
+    if(window.engineRef) window.engineRef.audio.playBuild(); 
+};
+
+const playError = () => {
+    // @ts-ignore
+    if(window.engineRef) window.engineRef.audio.playError();
+};
+
 interface TooltipInfo {
     title: string;
     cost: number;
@@ -70,8 +86,6 @@ const TowerIcon = ({ type }: { type: EntityType }) => {
         ctx.scale(1.4, 1.4); 
         
         // Draw using the shared Game Engine logic
-        // Positioned at (42, 65) to center it in the 120x120 canvas (scaled by 1.4)
-        // Rotation: Math.PI points LEFT as requested
         TowerFactory.drawPreview(ctx, { x: 42, y: 65 }, type, Math.PI); 
         
         ctx.restore();
@@ -106,6 +120,15 @@ export const BuildMenu: React.FC<BuildMenuProps> = ({ selectedTool, money, debug
             color: 'cyan'
         }
     ];
+
+    const handleSelect = (t: EntityType, cost: number) => {
+        if (debugMode || money >= cost) {
+            playClick();
+            onSelectTool(t);
+        } else {
+            playError();
+        }
+    };
 
     return (
         <>
@@ -144,7 +167,7 @@ export const BuildMenu: React.FC<BuildMenuProps> = ({ selectedTool, money, debug
                 </div>
             )}
 
-            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-6 pointer-events-auto z-10 px-6 py-4 bg-slate-950/80 backdrop-blur-xl rounded-2xl border border-slate-800 shadow-2xl">
+            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-6 pointer-events-auto z-10 px-6 py-4 bg-slate-950/90 backdrop-blur-xl rounded-2xl border border-slate-700 shadow-2xl">
                 
                 <div className="flex gap-3">
                     {tools.map((t) => {
@@ -152,14 +175,14 @@ export const BuildMenu: React.FC<BuildMenuProps> = ({ selectedTool, money, debug
                         return (
                             <button
                                 key={t.type}
-                                onClick={() => onSelectTool(t.type)}
-                                onMouseEnter={() => setHoveredTool(t.type)}
+                                onClick={() => handleSelect(t.type, TOOLTIPS[t.type].cost)}
+                                onMouseEnter={() => { playHover(); setHoveredTool(t.type); }}
                                 onMouseLeave={() => setHoveredTool(null)}
-                                className={`group relative flex flex-col items-center gap-1 p-1 rounded-xl transition-all duration-200 ${
+                                className={`group relative flex flex-col items-center gap-1 p-1 rounded-xl transition-all duration-150 ${
                                     selectedTool === t.type
-                                    ? `bg-slate-800 -translate-y-4 scale-110 shadow-[0_10px_20px_-5px_rgba(0,0,0,0.5)]`
-                                    : 'hover:-translate-y-1 hover:bg-slate-800/50'
-                                } ${!canAfford && selectedTool !== t.type ? 'opacity-50 grayscale' : ''}`}
+                                    ? `bg-slate-800 -translate-y-4 scale-110 shadow-[0_10px_20px_-5px_rgba(0,0,0,0.5)] border border-slate-500`
+                                    : 'hover:-translate-y-1 hover:bg-slate-800/50 border border-transparent'
+                                } ${!canAfford && selectedTool !== t.type ? 'opacity-60 grayscale' : ''}`}
                             >
                                 <div className="absolute -top-2 -right-2 w-5 h-5 bg-black/80 rounded-full border border-slate-600 flex items-center justify-center z-20">
                                     <span className="text-[10px] text-slate-300 font-mono">{t.id}</span>
@@ -168,12 +191,12 @@ export const BuildMenu: React.FC<BuildMenuProps> = ({ selectedTool, money, debug
                                 <div className={`w-14 h-14 rounded-lg bg-gradient-to-br from-${t.color}-500 to-${t.color}-700 shadow-inner flex items-center justify-center text-white font-bold text-xl border-2 ${selectedTool === t.type ? 'border-white' : `border-${t.color}-400/30`}`}>
                                     <TowerIcon type={t.type} />
                                 </div>
-                                <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${
+                                <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded transition-colors ${
                                     selectedTool === t.type 
                                         ? 'text-white bg-slate-700' 
                                         : canAfford 
-                                            ? 'text-slate-500' 
-                                            : 'text-rose-500'
+                                            ? 'text-slate-500 group-hover:text-slate-300' 
+                                            : 'text-rose-500 bg-rose-950/30'
                                 }`}>
                                     {debugMode ? 'FREE' : `$${TOOLTIPS[t.type].cost}`}
                                 </span>
@@ -190,7 +213,8 @@ export const BuildMenu: React.FC<BuildMenuProps> = ({ selectedTool, money, debug
                 <div className="w-px h-12 bg-slate-700/50"></div>
 
                 <button
-                    onClick={onNextWave}
+                    onClick={() => { playClick(); onNextWave(); }}
+                    onMouseEnter={playHover}
                     className="group relative h-14 pl-6 pr-8 bg-gradient-to-r from-rose-700 to-orange-700 hover:from-rose-600 hover:to-orange-600 text-white font-bold rounded-xl shadow-lg border border-white/10 active:scale-95 transition-all flex items-center gap-3 overflow-hidden"
                 >
                     <div className="absolute -top-2 -right-2 w-10 h-5 bg-black/40 rounded-bl-lg flex items-center justify-center z-20 pointer-events-none">
@@ -202,7 +226,7 @@ export const BuildMenu: React.FC<BuildMenuProps> = ({ selectedTool, money, debug
                     
                     <span className="text-2xl animate-pulse drop-shadow-md">⚠️</span>
                     <div className="text-left leading-none relative z-10">
-                        <div className="text-[10px] uppercase tracking-widest text-orange-200 mb-0.5">Initialize</div>
+                        <div className="text-[10px] uppercase tracking-widest text-orange-200 mb-0.5 group-hover:text-white transition-colors">Initialize</div>
                         <div className="text-xl font-black italic tracking-tighter drop-shadow-md">NEXT WAVE</div>
                     </div>
                 </button>

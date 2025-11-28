@@ -1,6 +1,4 @@
 
-
-
 import { AudioCore } from './AudioCore';
 import { Instruments } from './Instruments';
 
@@ -32,6 +30,18 @@ export class SFX {
               break;
           case 'ui_click':
                buf = await this.core.renderToBuffer(0.1, (ctx, dest) => this.synthClick(ctx, dest, 0), log);
+               break;
+          case 'ui_hover':
+               buf = await this.core.renderToBuffer(0.05, (ctx, dest) => this.synthHover(ctx, dest, 0), log);
+               break;
+          case 'ui_error':
+               buf = await this.core.renderToBuffer(0.3, (ctx, dest) => this.synthError(ctx, dest, 0), log);
+               break;
+          case 'impact_metal':
+               buf = await this.core.renderToBuffer(0.5, (ctx, dest) => this.synthImpactMetal(ctx, dest, 0), log);
+               break;
+          case 'impact_organic':
+               buf = await this.core.renderToBuffer(0.3, (ctx, dest) => this.synthImpactOrganic(ctx, dest, 0), log);
                break;
           case 'cancel':
               buf = await this.core.renderToBuffer(0.3, (ctx, dest) => this.synthCancel(ctx, dest, 0), log);
@@ -76,18 +86,16 @@ export class SFX {
   }
 
   // --- Public Methods ---
-  // Boosted volumes (generally +0.2 to +0.5 compared to previous)
 
   waveStart() {
       const buf = this.buffers.get('wave_start');
-      if (buf) this.core.playBuffer(buf, this.core.currentTime, 'SFX', 1.0, 1.2); // Adjusted volume slightly down for new loud synthesis
+      if (buf) this.core.playBuffer(buf, this.core.currentTime, 'SFX', 1.0, 1.2); 
   }
 
   shoot(pitchVar = 1.0) {
     const buf = pitchVar < 0.8 ? this.buffers.get('shoot_heavy') : this.buffers.get('shoot');
     if (buf) {
         const rate = pitchVar * (0.98 + Math.random() * 0.04);
-        // High volume for main action
         this.core.playBuffer(buf, this.core.currentTime, 'SFX', rate, 1.2); 
     }
   }
@@ -108,6 +116,16 @@ export class SFX {
   laser() {
       const buf = this.buffers.get('laser');
       if (buf) this.core.playBuffer(buf, this.core.currentTime, 'SFX', 0.9 + Math.random() * 0.2, 0.8); 
+  }
+
+  impactMetal() {
+      const buf = this.buffers.get('impact_metal');
+      if (buf) this.core.playBuffer(buf, this.core.currentTime, 'SFX', 0.9 + Math.random()*0.2, 0.8);
+  }
+
+  impactOrganic() {
+      const buf = this.buffers.get('impact_organic');
+      if (buf) this.core.playBuffer(buf, this.core.currentTime, 'SFX', 0.9 + Math.random()*0.2, 0.8);
   }
 
   playPhantomDeath() {
@@ -147,9 +165,7 @@ export class SFX {
   }
 
   gold() {
-      // Replaced Felt Piano with Chiptune equivalent logic locally or just a simple ping
       if (!this.core.ctx || !this.core.sfxBus) return;
-      // Simple Pulse wave coin sound
       const t = this.core.currentTime;
       const osc = this.core.ctx.createOscillator();
       osc.type = 'square';
@@ -168,35 +184,38 @@ export class SFX {
       const buf = this.buffers.get('ui_click');
       if (buf) this.core.playBuffer(buf, this.core.currentTime, 'SFX', 0.8, 1.0);
   }
+
+  hover() {
+      const buf = this.buffers.get('ui_hover');
+      if (buf) this.core.playBuffer(buf, this.core.currentTime, 'SFX', 1.0, 0.3);
+  }
+
+  error() {
+      const buf = this.buffers.get('ui_error');
+      if (buf) this.core.playBuffer(buf, this.core.currentTime, 'SFX', 1.0, 0.6);
+  }
   
   levelUp() {
-      // MAGICAL CHIME: C Major 7 Arpeggio (C, E, G, B, C)
       if (!this.core.ctx || !this.core.sfxBus) return;
       const t = this.core.currentTime;
       
-      const notes = [523.25, 659.25, 783.99, 987.77, 1046.50]; // C5, E5, G5, B5, C6
+      const notes = [523.25, 659.25, 783.99, 987.77, 1046.50]; 
       
       notes.forEach((freq, i) => {
           const osc = this.core.ctx!.createOscillator();
           const gain = this.core.ctx!.createGain();
-          
-          osc.type = 'sine'; // Pure tone
+          osc.type = 'sine';
           osc.frequency.value = freq;
-          
-          const startTime = t + (i * 0.04); // Fast arpeggio
-          
+          const startTime = t + (i * 0.04);
           gain.gain.setValueAtTime(0, startTime);
-          gain.gain.linearRampToValueAtTime(0.15, startTime + 0.02); // Quick attack
-          gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.5); // Smooth decay
-          
+          gain.gain.linearRampToValueAtTime(0.15, startTime + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.5);
           osc.connect(gain);
           gain.connect(this.core.sfxBus!);
-          
           osc.start(startTime);
           osc.stop(startTime + 0.6);
       });
 
-      // Subtle Sparkle Noise
       const bufferSize = this.core.ctx.sampleRate * 0.5;
       const buffer = this.core.ctx.createBuffer(1, bufferSize, this.core.ctx.sampleRate);
       const data = buffer.getChannelData(0);
@@ -247,7 +266,6 @@ export class SFX {
   gameover() {
       if (!this.core.ctx || !this.core.sfxBus) return;
       const t = this.core.currentTime;
-      // Descending slide
       const osc = this.core.ctx.createOscillator();
       osc.type = 'sawtooth';
       osc.frequency.setValueAtTime(200, t);
@@ -264,8 +282,6 @@ export class SFX {
 
   private synthExplosion(ctx: BaseAudioContext, dest: AudioNode, time: number, scale: number) {
     const duration = 0.5 * scale;
-    
-    // Noise
     const bufferSize = ctx.sampleRate * duration;
     const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
     const data = buffer.getChannelData(0);
@@ -288,9 +304,8 @@ export class SFX {
     gain.connect(dest);
     noise.start(time);
     
-    // Sub-Bass
     const sub = ctx.createOscillator();
-    sub.type = 'triangle'; // Cleaner rumble
+    sub.type = 'triangle';
     sub.frequency.setValueAtTime(120, time);
     sub.frequency.exponentialRampToValueAtTime(10, time + duration);
     
@@ -306,7 +321,6 @@ export class SFX {
     shaper.connect(dest);
     sub.start(time);
 
-    // Crack
     if (scale > 1) {
         const crack = ctx.createOscillator();
         crack.type = 'square';
@@ -334,8 +348,89 @@ export class SFX {
       osc.start(time); osc.stop(time + 0.05);
   }
 
+  private synthHover(ctx: BaseAudioContext, dest: AudioNode, time: number) {
+      const osc = ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(2000, time);
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0.1, time);
+      gain.gain.exponentialRampToValueAtTime(0.001, time + 0.05);
+      osc.connect(gain);
+      gain.connect(dest);
+      osc.start(time); osc.stop(time + 0.05);
+  }
+
+  private synthError(ctx: BaseAudioContext, dest: AudioNode, time: number) {
+      const osc = ctx.createOscillator();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(150, time);
+      osc.frequency.linearRampToValueAtTime(100, time + 0.2);
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0.2, time);
+      gain.gain.linearRampToValueAtTime(0, time + 0.2);
+      osc.connect(gain);
+      gain.connect(dest);
+      osc.start(time); osc.stop(time + 0.2);
+  }
+
+  private synthImpactMetal(ctx: BaseAudioContext, dest: AudioNode, time: number) {
+      // 1. Metallic Ring
+      const osc = ctx.createOscillator();
+      osc.type = 'square';
+      osc.frequency.value = 800;
+      const bandpass = ctx.createBiquadFilter();
+      bandpass.type = 'bandpass';
+      bandpass.frequency.value = 800;
+      bandpass.Q.value = 10; // High resonance
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0.3, time);
+      gain.gain.exponentialRampToValueAtTime(0.001, time + 0.4);
+      osc.connect(bandpass);
+      bandpass.connect(gain);
+      gain.connect(dest);
+      osc.start(time); osc.stop(time+0.4);
+
+      // 2. Clank Noise
+      const bufferSize = ctx.sampleRate * 0.1;
+      const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for(let i=0; i<bufferSize; i++) data[i] = Math.random()*2-1;
+      const noise = ctx.createBufferSource();
+      noise.buffer = buffer;
+      const nGain = ctx.createGain();
+      nGain.gain.setValueAtTime(0.5, time);
+      nGain.gain.exponentialRampToValueAtTime(0.01, time + 0.1);
+      noise.connect(nGain);
+      nGain.connect(dest);
+      noise.start(time);
+  }
+
+  private synthImpactOrganic(ctx: BaseAudioContext, dest: AudioNode, time: number) {
+      // Squish: filtered noise
+      const bufferSize = ctx.sampleRate * 0.2;
+      const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for(let i=0; i<bufferSize; i++) data[i] = Math.random()*2-1;
+      
+      const noise = ctx.createBufferSource();
+      noise.buffer = buffer;
+      
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(1000, time);
+      filter.frequency.exponentialRampToValueAtTime(100, time + 0.2); // Closing filter
+      
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0.6, time);
+      gain.gain.exponentialRampToValueAtTime(0.01, time + 0.2);
+      
+      noise.connect(filter);
+      filter.connect(gain);
+      gain.connect(dest);
+      noise.start(time);
+  }
+
   private synthHit(ctx: BaseAudioContext, dest: AudioNode, time: number) {
-      // Crunchy impact
       const bufferSize = ctx.sampleRate * 0.1;
       const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
       const data = buffer.getChannelData(0);
@@ -428,30 +523,28 @@ export class SFX {
   }
   
   private synthPulse(ctx: BaseAudioContext, dest: AudioNode, time: number) {
-      // 1. Deep Sub Bass (The "Thump")
       const osc = ctx.createOscillator();
       osc.type = 'sine';
-      osc.frequency.setValueAtTime(80, time); // Lower start
-      osc.frequency.exponentialRampToValueAtTime(10, time + 0.4); // Lower end, longer tail
+      osc.frequency.setValueAtTime(80, time); 
+      osc.frequency.exponentialRampToValueAtTime(10, time + 0.4); 
       
       const gain = ctx.createGain();
-      gain.gain.setValueAtTime(1.2, time); // Boosted gain
+      gain.gain.setValueAtTime(1.2, time); 
       gain.gain.exponentialRampToValueAtTime(0.01, time + 0.4);
       
       osc.connect(gain);
       gain.connect(dest);
       osc.start(time); osc.stop(time + 0.4);
 
-      // 2. Resonant Low Sweep (The "Wub")
       const zap = ctx.createOscillator();
       zap.type = 'sawtooth';
-      zap.frequency.setValueAtTime(150, time); // Much lower pitch
+      zap.frequency.setValueAtTime(150, time); 
       zap.frequency.exponentialRampToValueAtTime(40, time + 0.3);
       
       const zapFilter = ctx.createBiquadFilter();
       zapFilter.type = 'lowpass';
       zapFilter.Q.value = 5; 
-      zapFilter.frequency.setValueAtTime(600, time); // Darker filter
+      zapFilter.frequency.setValueAtTime(600, time); 
       zapFilter.frequency.exponentialRampToValueAtTime(50, time + 0.3);
       
       const zapGain = ctx.createGain();
@@ -463,7 +556,6 @@ export class SFX {
       zapGain.connect(dest);
       zap.start(time); zap.stop(time + 0.3);
       
-      // 3. Muffled Impact Noise
       const bufferSize = ctx.sampleRate * 0.1;
       const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
       const data = buffer.getChannelData(0);
@@ -477,7 +569,7 @@ export class SFX {
       
       const noiseFilter = ctx.createBiquadFilter();
       noiseFilter.type = 'lowpass';
-      noiseFilter.frequency.value = 400; // Muffled thud
+      noiseFilter.frequency.value = 400; 
       
       noise.connect(noiseFilter);
       noiseFilter.connect(noiseGain);
@@ -540,7 +632,6 @@ export class SFX {
   }
   
   private synthWaveStart(ctx: BaseAudioContext, dest: AudioNode, time: number) {
-      // 1. Initial Impact (Kick/Sub Drop)
       const sub = ctx.createOscillator();
       const subGain = ctx.createGain();
       sub.type = 'sine';
@@ -554,12 +645,10 @@ export class SFX {
       subGain.connect(dest);
       sub.start(time); sub.stop(time + 1.2);
 
-      // 2. Rising Synth Swell (Tension)
       const duration = 2.5;
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.type = 'sawtooth';
-      // Start low, pitch up dramatically
       osc.frequency.setValueAtTime(110, time); 
       osc.frequency.exponentialRampToValueAtTime(440, time + duration);
 
@@ -569,15 +658,14 @@ export class SFX {
       filter.frequency.exponentialRampToValueAtTime(4000, time + duration);
 
       gain.gain.setValueAtTime(0, time);
-      gain.gain.linearRampToValueAtTime(0.5, time + 0.2); // Fade in
-      gain.gain.linearRampToValueAtTime(0, time + duration); // Fade out
+      gain.gain.linearRampToValueAtTime(0.5, time + 0.2); 
+      gain.gain.linearRampToValueAtTime(0, time + duration);
 
       osc.connect(filter);
       filter.connect(gain);
       gain.connect(dest);
       osc.start(time); osc.stop(time + duration);
 
-      // 3. Sci-Fi Sweep (Bandpass Noise)
       const bufferSize = ctx.sampleRate * duration;
       const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
       const data = buffer.getChannelData(0);
