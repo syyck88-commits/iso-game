@@ -28,10 +28,12 @@ export class RenderManager {
     if (!ctx) throw new Error('Could not create offscreen context');
     this.offscreenCtx = ctx;
 
+    // Генерируем более плавный шум
     for(let y=0; y<GRID_SIZE; y++) {
         this.tileNoise[y] = [];
         for(let x=0; x<GRID_SIZE; x++) {
-            this.tileNoise[y][x] = Math.random();
+            // Мягкий шум для вариации цвета
+            this.tileNoise[y][x] = Math.random() * 0.15;
         }
     }
   }
@@ -55,7 +57,12 @@ export class RenderManager {
 
   prerenderMap() {
     this.offscreenCtx.clearRect(0, 0, this.width, this.height);
-    this.drawGrid(this.offscreenCtx);
+    // 1. Рисуем ландшафт (Трава, Вода, Песок) как сплошной слой
+    this.drawTerrain(this.offscreenCtx);
+    // 2. Рисуем дороги поверх ландшафта (Кривые)
+    this.drawRoads(this.offscreenCtx);
+    // 3. Рисуем строительную сетку поверх всего (тонкая)
+    this.drawGridOverlay(this.offscreenCtx);
   }
 
   shake(intensity: number) {
@@ -88,7 +95,7 @@ export class RenderManager {
         ctx.drawImage(this.offscreenCanvas, 0, 0);
     }
     
-    this.drawEnemyPath(ctx);
+    this.drawEnemyPathMarkers(ctx);
     this.drawRangeIndicators(ctx);
   }
 
@@ -105,7 +112,6 @@ export class RenderManager {
         const cost = this.engine.getTowerCost(selectedType);
         const canAfford = this.engine.debugMode || this.engine.gameState.money >= cost;
         
-        const isValid = isBuildable && canAfford;
         const time = Date.now() / 200;
         const hoverOffset = Math.sin(time) * 3;
 
@@ -113,16 +119,17 @@ export class RenderManager {
         ctx.translate(screenPos.x, screenPos.y - hoverOffset);
         
         let strokeColor = '#4ade80';
-        let fillColor = 'rgba(74, 222, 128, 0.2)';
+        let fillColor = 'rgba(74, 222, 128, 0.4)'; // Более яркая подсветка
 
         if (!isBuildable) {
             strokeColor = '#ef4444';
-            fillColor = 'rgba(239, 68, 68, 0.2)';
+            fillColor = 'rgba(239, 68, 68, 0.4)';
         } else if (!canAfford) {
             strokeColor = '#9ca3af';
             fillColor = 'rgba(100, 116, 139, 0.4)';
         }
 
+        // Рисуем курсор строительства (ромб)
         ctx.beginPath();
         ctx.moveTo(0, 0); 
         ctx.lineTo(TILE_WIDTH/2, TILE_HEIGHT/2);
@@ -135,9 +142,7 @@ export class RenderManager {
         
         ctx.lineWidth = 2;
         ctx.strokeStyle = strokeColor;
-        ctx.setLineDash([10, 5]);
         ctx.stroke();
-        ctx.setLineDash([]);
 
         if (isBuildable && !canAfford) {
              ctx.fillStyle = '#ef4444';
@@ -161,17 +166,11 @@ export class RenderManager {
                 selectedType
             );
             
-            if (!canAfford) {
-                ctx.globalCompositeOperation = 'source-over';
-                ctx.fillStyle = 'rgba(239, 68, 68, 0.3)';
-                const h = 40;
-                ctx.fillRect(screenPos.x - 10, screenPos.y - 30, 20, h);
-            }
-
             ctx.restore();
         }
     }
     
+    // Подсветка выбранного юнита
     const selId = this.engine.input.selectedEntityId;
     if (selId) {
         const ent = this.engine.entities.find(e => e.id === selId);
@@ -185,20 +184,17 @@ export class RenderManager {
             
             ctx.strokeStyle = '#facc15';
             ctx.lineWidth = 2;
-            ctx.shadowColor = '#facc15';
-            ctx.shadowBlur = 10;
             
             const r = 25;
             ctx.rotate(time);
             
+            // Вращающийся прицел
             for(let i=0; i<4; i++) {
                 ctx.rotate(Math.PI/2);
                 ctx.beginPath();
                 ctx.arc(0, 0, r + Math.sin(time*2)*2, 0, Math.PI/4);
                 ctx.stroke();
             }
-            
-            ctx.shadowBlur = 0;
             ctx.restore();
         }
     }
@@ -212,148 +208,192 @@ export class RenderManager {
     grad.addColorStop(1, '#020617'); 
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, this.width, this.height);
-    
-    ctx.save();
-    const time = Date.now() / 10000;
-    ctx.strokeStyle = 'rgba(56, 189, 248, 0.08)';
-    ctx.lineWidth = 1;
-    
-    const gridSize = 100;
-    const offsetX = (Date.now() / 50) % gridSize;
-    const offsetY = (Date.now() / 50) % gridSize;
-
-    ctx.beginPath();
-    for (let x = -gridSize; x < this.width + gridSize; x += gridSize) {
-        ctx.moveTo(x - offsetX, 0);
-        ctx.lineTo(x - offsetX, this.height);
-    }
-    for (let y = -gridSize; y < this.height + gridSize; y += gridSize) {
-        ctx.moveTo(0, y - offsetY);
-        ctx.lineTo(this.width, y - offsetY);
-    }
-    ctx.stroke();
-    
-    const gradV = ctx.createRadialGradient(this.width/2, this.height/2, this.height/3, this.width/2, this.height/2, this.height);
-    gradV.addColorStop(0, 'transparent');
-    gradV.addColorStop(1, 'rgba(0,0,0,0.6)');
-    ctx.fillStyle = gradV;
-    ctx.fillRect(0,0,this.width, this.height);
-
-    ctx.restore();
   }
 
-  private drawGrid(ctx: CanvasRenderingContext2D) {
+  // --- НОВЫЙ РЕНДЕР ЛАНДШАФТА ---
+  private drawTerrain(ctx: CanvasRenderingContext2D) {
     for (let y = 0; y < GRID_SIZE; y++) {
       for (let x = 0; x < GRID_SIZE; x++) {
-        const screenPos = toScreen(x, y, this.offsetX, this.offsetY);
-        this.drawTile(ctx, x, y, screenPos);
+        const tileType = this.engine.map.getTile(x, y);
+        // Дороги рисуем в отдельном проходе drawRoads, здесь пропускаем их или рисуем подложку
+        if (tileType === 1) continue; 
+
+        const pos = toScreen(x, y, this.offsetX, this.offsetY);
+        this.drawBaseTile(ctx, x, y, pos, tileType);
       }
     }
   }
 
-  private drawTile(ctx: CanvasRenderingContext2D, x: number, y: number, pos: Vector2) {
-    const tileType = this.engine.map.getTile(x, y);
-    const noise = this.tileNoise[y][x];
+  private drawBaseTile(ctx: CanvasRenderingContext2D, x: number, y: number, pos: Vector2, tileType: number) {
+    const noise = this.tileNoise[y][x]; // Слабый шум 0..0.15
 
-    let topColor: string, leftColor: string, rightColor: string;
-    let depth = 8; 
+    let color: string;
+    let depth = 0;
 
-    if (tileType === 1) { // Path
-        topColor = '#57534e';
-        leftColor = '#44403c'; 
-        rightColor = '#292524'; 
-        depth = 6;
-    } else if (tileType === 3) { // Rock Blocked Tile
-        topColor = '#475569'; 
-        leftColor = '#334155';
-        rightColor = '#1e293b';
-        depth = 8; // Reset height, Entity handles verticality
-    } else if (tileType === 5) { // Water
-        topColor = '#06b6d4'; 
-        leftColor = '#0891b2'; 
-        rightColor = '#164e63'; 
+    if (tileType === 5) { // Water
+        color = '#0e7490'; // Cyan 700 base
         depth = 4;
     } else if (tileType === 6) { // Sand
-        topColor = '#fcd34d'; 
-        leftColor = '#d97706';
-        rightColor = '#b45309';
-        depth = 6;
-    } else { // Grass (0) or Tree Blocked (4)
-        const hue = 150 + (noise * 20); 
-        topColor = `hsl(${hue}, 60%, 40%)`; 
-        leftColor = `hsl(${hue}, 60%, 30%)`;
-        rightColor = `hsl(${hue}, 60%, 20%)`;
+        color = '#d97706'; // Amber 600
+        depth = 4;
+    } else { // Grass (0) or others
+        // Плавная вариация зеленого без резких перепадов
+        // HSL: Hue 150 (Green), Saturation 40-50%, Lightness 35-40%
+        const hue = 150 + (noise * 10); 
+        const lit = 35 + (noise * 10);
+        color = `hsl(${hue}, 50%, ${lit}%)`;
+        depth = 8; // Высота блока земли
     }
 
-    // Right Face
-    ctx.fillStyle = rightColor;
-    ctx.beginPath();
-    ctx.moveTo(pos.x, pos.y + TILE_HEIGHT);
-    ctx.lineTo(pos.x + TILE_WIDTH / 2, pos.y + TILE_HEIGHT / 2);
-    ctx.lineTo(pos.x + TILE_WIDTH / 2, pos.y + TILE_HEIGHT / 2 + depth);
-    ctx.lineTo(pos.x, pos.y + TILE_HEIGHT + depth);
-    ctx.fill();
+    // Для бесшовного вида мы рисуем только верхнюю грань для травы, если она не на краю
+    // Но чтобы оставить объем, нарисуем блок чуть темнее
+    
+    // Боковые грани (темнее)
+    if (depth > 0) {
+        ctx.fillStyle = this.darkenColor(color, 0.7); // Right face
+        ctx.beginPath();
+        ctx.moveTo(pos.x, pos.y + TILE_HEIGHT);
+        ctx.lineTo(pos.x + TILE_WIDTH / 2, pos.y + TILE_HEIGHT / 2);
+        ctx.lineTo(pos.x + TILE_WIDTH / 2, pos.y + TILE_HEIGHT / 2 + depth);
+        ctx.lineTo(pos.x, pos.y + TILE_HEIGHT + depth);
+        ctx.fill();
 
-    // Left Face
-    ctx.fillStyle = leftColor;
-    ctx.beginPath();
-    ctx.moveTo(pos.x - TILE_WIDTH / 2, pos.y + TILE_HEIGHT / 2);
-    ctx.lineTo(pos.x, pos.y + TILE_HEIGHT);
-    ctx.lineTo(pos.x, pos.y + TILE_HEIGHT + depth);
-    ctx.lineTo(pos.x - TILE_WIDTH / 2, pos.y + TILE_HEIGHT / 2 + depth);
-    ctx.fill();
+        ctx.fillStyle = this.darkenColor(color, 0.85); // Left face
+        ctx.beginPath();
+        ctx.moveTo(pos.x - TILE_WIDTH / 2, pos.y + TILE_HEIGHT / 2);
+        ctx.lineTo(pos.x, pos.y + TILE_HEIGHT);
+        ctx.lineTo(pos.x, pos.y + TILE_HEIGHT + depth);
+        ctx.lineTo(pos.x - TILE_WIDTH / 2, pos.y + TILE_HEIGHT / 2 + depth);
+        ctx.fill();
+    }
 
-    // Top Face
-    ctx.fillStyle = topColor;
+    // Верхняя грань (Top Face) - БЕЗ ОБВОДКИ (Stroke)
+    ctx.fillStyle = color;
     ctx.beginPath();
     ctx.moveTo(pos.x, pos.y);
     ctx.lineTo(pos.x + TILE_WIDTH / 2, pos.y + TILE_HEIGHT / 2);
     ctx.lineTo(pos.x, pos.y + TILE_HEIGHT);
     ctx.lineTo(pos.x - TILE_WIDTH / 2, pos.y + TILE_HEIGHT / 2);
     ctx.closePath();
-    ctx.fill();
+    ctx.fill(); // Только заливка, трава сливается
 
-    const grad = ctx.createLinearGradient(pos.x - TILE_WIDTH/2, pos.y, pos.x + TILE_WIDTH/2, pos.y + TILE_HEIGHT);
-    grad.addColorStop(0, 'rgba(255,255,255,0.1)'); 
-    grad.addColorStop(1, 'rgba(0,0,0,0.1)');
-    ctx.fillStyle = grad;
-    ctx.fill();
-
-    // Surface Details
-    if (tileType === 0 || tileType === 4) { // Grass
-        if (noise > 0.6) {
-            ctx.fillStyle = 'rgba(0,0,0,0.2)'; 
-            ctx.fillRect(pos.x - 2 + (noise*10), pos.y + 14, 4, 2);
-            ctx.fillStyle = '#86efac'; 
-            ctx.beginPath();
-            ctx.moveTo(pos.x + (noise*10), pos.y + 14);
-            ctx.lineTo(pos.x + (noise*10) + 2, pos.y + 8);
-            ctx.lineTo(pos.x + (noise*10) + 4, pos.y + 14);
-            ctx.fill();
-        }
-    } else if (tileType === 1) { // Path
-        if (noise > 0.4) {
-            ctx.fillStyle = 'rgba(0,0,0,0.2)';
-            const ox = (noise - 0.5) * 20;
-            const oy = (noise - 0.5) * 10 + 12;
-            ctx.beginPath(); ctx.ellipse(pos.x + ox, pos.y + oy, 4, 2, 0, 0, Math.PI*2); ctx.fill();
-            ctx.fillStyle = '#78716c'; 
-            ctx.beginPath(); ctx.ellipse(pos.x + ox, pos.y + oy - 1, 3.5, 1.8, 0, 0, Math.PI*2); ctx.fill();
-        }
-    } else if (tileType === 5) { // Water Specular
-        ctx.fillStyle = 'rgba(255,255,255,0.2)';
-        const ox = (noise - 0.5) * 20;
-        const oy = (noise - 0.5) * 10 + 10;
-        ctx.beginPath(); ctx.ellipse(pos.x + ox, pos.y + oy, 6, 3, 0, 0, Math.PI*2); ctx.fill();
+    // Детали для воды (Блики)
+    if (tileType === 5 && noise > 0.1) {
+        ctx.fillStyle = 'rgba(255,255,255,0.1)';
+        ctx.beginPath(); ctx.ellipse(pos.x, pos.y + 12, 6, 3, 0, 0, Math.PI*2); ctx.fill();
     }
-
-    ctx.strokeStyle = 'rgba(255,255,255,0.05)';
-    ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(pos.x, pos.y); ctx.lineTo(pos.x + TILE_WIDTH / 2, pos.y + TILE_HEIGHT / 2); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(pos.x, pos.y); ctx.lineTo(pos.x - TILE_WIDTH / 2, pos.y + TILE_HEIGHT / 2); ctx.stroke();
   }
 
-  private drawEnemyPath(ctx: CanvasRenderingContext2D) {
+  // Вспомогательная функция затемнения HSL/Hex (упрощенная для HSL строк, которые мы генерируем)
+  private darkenColor(hsl: string, factor: number): string {
+      // Очень простой хак, так как мы знаем формат нашей строки hsl(...)
+      // Для реального проекта лучше использовать tinycolor2 или манипуляции с r,g,b
+      if (hsl.startsWith('hsl')) {
+          return hsl.replace(/(\d+)%\)/, (match, p1) => `${parseFloat(p1) * factor}%)`);
+      }
+      return hsl; // Fallback for Hex
+  }
+
+  // --- РИСОВАНИЕ ДОРОГ (CURVED) ---
+  private drawRoads(ctx: CanvasRenderingContext2D) {
+      // Цвет дороги
+      const roadColor = '#44403c'; // Stone 700
+      const roadBorder = '#292524'; // Stone 800
+      const roadWidth = 14; 
+
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+
+      // Проход 1: Подложка (Бордюры)
+      this.drawRoadConnections(ctx, roadBorder, roadWidth + 4);
+      // Проход 2: Асфальт
+      this.drawRoadConnections(ctx, roadColor, roadWidth);
+      
+      // Детали (Камни)
+      this.drawRoadDetails(ctx);
+  }
+
+  private drawRoadConnections(ctx: CanvasRenderingContext2D, color: string, width: number) {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = width;
+      ctx.beginPath();
+
+      for (let y = 0; y < GRID_SIZE; y++) {
+          for (let x = 0; x < GRID_SIZE; x++) {
+              if (this.engine.map.getTile(x, y) !== 1) continue;
+
+              const currentPos = this.getTileCenter(x, y);
+              
+              // Соединяем с соседями, если они тоже дорога
+              // Проверяем Right (x+1) и Bottom (y+1), чтобы не рисовать дважды
+              
+              // Right Neighbor
+              if (x < GRID_SIZE - 1 && this.engine.map.getTile(x + 1, y) === 1) {
+                  const nextPos = this.getTileCenter(x + 1, y);
+                  ctx.moveTo(currentPos.x, currentPos.y);
+                  ctx.lineTo(nextPos.x, nextPos.y);
+              }
+              // Bottom Neighbor
+              if (y < GRID_SIZE - 1 && this.engine.map.getTile(x, y + 1) === 1) {
+                  const nextPos = this.getTileCenter(x, y + 1);
+                  ctx.moveTo(currentPos.x, currentPos.y);
+                  ctx.lineTo(nextPos.x, nextPos.y);
+              }
+              
+              // Чтобы узлы не были дырявыми, рисуем точку в центре
+              ctx.moveTo(currentPos.x, currentPos.y);
+              ctx.lineTo(currentPos.x + 0.1, currentPos.y); // Hack to force dot cap
+          }
+      }
+      ctx.stroke();
+  }
+
+  private drawRoadDetails(ctx: CanvasRenderingContext2D) {
+      ctx.fillStyle = '#57534e'; // Светлые камушки
+      for (let y = 0; y < GRID_SIZE; y++) {
+          for (let x = 0; x < GRID_SIZE; x++) {
+              if (this.engine.map.getTile(x, y) !== 1) continue;
+              if (this.tileNoise[y][x] > 0.1) {
+                  const pos = this.getTileCenter(x, y);
+                  ctx.beginPath();
+                  ctx.arc(pos.x + (this.tileNoise[y][x]-0.07)*30, pos.y + (this.tileNoise[x][y]-0.07)*15, 2, 0, Math.PI*2);
+                  ctx.fill();
+              }
+          }
+      }
+  }
+
+  private getTileCenter(gx: number, gy: number): Vector2 {
+      // Центр ромба изометрии
+      const screen = toScreen(gx, gy, this.offsetX, this.offsetY);
+      return {
+          x: screen.x,
+          y: screen.y + TILE_HEIGHT / 2
+      };
+  }
+
+  // --- СТРОИТЕЛЬНАЯ СЕТКА (Оверлей) ---
+  private drawGridOverlay(ctx: CanvasRenderingContext2D) {
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)'; // Очень тонкая, едва заметная сетка
+    
+    // Рисуем сетку поверх всего ландшафта, чтобы было видно клетки
+    ctx.beginPath();
+    for (let y = 0; y < GRID_SIZE; y++) {
+      for (let x = 0; x < GRID_SIZE; x++) {
+        const pos = toScreen(x, y, this.offsetX, this.offsetY);
+        
+        ctx.moveTo(pos.x, pos.y);
+        ctx.lineTo(pos.x + TILE_WIDTH / 2, pos.y + TILE_HEIGHT / 2);
+        ctx.lineTo(pos.x, pos.y + TILE_HEIGHT);
+        ctx.lineTo(pos.x - TILE_WIDTH / 2, pos.y + TILE_HEIGHT / 2);
+        ctx.lineTo(pos.x, pos.y);
+      }
+    }
+    ctx.stroke();
+  }
+
+  private drawEnemyPathMarkers(ctx: CanvasRenderingContext2D) {
       const path = this.engine.map.enemyPath;
       if (path.length < 2) return;
 

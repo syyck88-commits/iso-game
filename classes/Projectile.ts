@@ -1,6 +1,5 @@
 
-
-import { EntityType, Vector2, ParticleBehavior } from '../types';
+import { EntityType, Vector2, ParticleBehavior, DamageType } from '../types';
 import { BaseEntity } from './BaseEntity';
 import { GameEngine } from './GameEngine';
 import { BaseEnemy } from './enemies/BaseEnemy';
@@ -11,20 +10,22 @@ export class Projectile extends BaseEntity {
   target: BaseEnemy;
   speed: number = 0.4; // Grid units per tick (at 60fps)
   damage: number;
+  damageType: DamageType;
   prevPos: Vector2;
   sourceId: string;
   isRailgun: boolean = false; // Visual flag
 
-  constructor(startPos: Vector2, target: BaseEnemy, damage: number, sourceId: string) {
+  constructor(startPos: Vector2, target: BaseEnemy, damage: number, damageType: DamageType, sourceId: string) {
     super(EntityType.PROJECTILE, startPos.x, startPos.y);
     this.target = target;
     this.damage = damage;
+    this.damageType = damageType;
     this.zHeight = 35; // Flying high
     this.prevPos = { ...startPos };
     this.sourceId = sourceId;
 
-    // Detect if this is a heavy shot based on damage (Sniper damage > 30)
-    if (this.damage > 30) {
+    // Detect if this is a heavy shot based on damage type
+    if (this.damageType === DamageType.PIERCING) {
         this.isRailgun = true;
         this.speed = 1.2; // Much faster
     }
@@ -50,17 +51,11 @@ export class Projectile extends BaseEntity {
     const moveDist = this.speed * tick;
 
     if (dist < Math.max(0.5, moveDist)) {
-        // Hit
-        this.target.health -= this.damage;
-        
-        // Crit chance
-        const isCrit = Math.random() > 0.8;
-        if (isCrit) {
-             this.target.health -= this.damage;
-        }
+        // Hit Logic: Delegate to enemy to handle resistances
+        const finalDamage = this.target.takeDamage(this.damage, this.damageType, engine);
 
         // Kill Credit Logic
-        if (this.target.health <= 0) {
+        if (this.target.health <= 0 && finalDamage > 0) {
             const tower = engine.entities.find(e => e.id === this.sourceId);
             if (tower && tower instanceof Tower) {
                 tower.killCount++;
@@ -70,8 +65,7 @@ export class Projectile extends BaseEntity {
         engine.spawnHitEffect(this.target.gridPos);
         engine.removeEntity(this.id);
         
-        const text = isCrit ? `${this.damage * 2}!` : `${this.damage}`;
-        engine.addFloatingText(text, this.target.gridPos, isCrit ? '#fbbf24' : '#fff', isCrit);
+        // Floating text is now handled inside BaseEnemy.takeDamage
     } else {
         this.gridPos.x += (dx / dist) * moveDist;
         this.gridPos.y += (dy / dist) * moveDist;

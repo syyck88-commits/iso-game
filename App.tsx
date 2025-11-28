@@ -1,15 +1,15 @@
 
-
 import React, { useEffect, useRef, useState } from 'react';
 import { GameEngine } from './classes/GameEngine';
 import { EntityType, EnemyVariant } from './types';
-import { Tower } from './classes/Entities';
+import { Tower, BaseEnemy } from './classes/Entities';
 
 // Subcomponents
 import { LoadingScreen } from './components/LoadingScreen';
 import { TopBar } from './components/TopBar';
 import { BuildMenu } from './components/BuildMenu';
 import { TowerPanel } from './components/TowerPanel';
+import { EnemyPanel } from './components/EnemyPanel';
 import { GameOver } from './components/GameOver';
 
 // --- NEW ANIMATION DEBUG PANEL ---
@@ -97,7 +97,10 @@ const App: React.FC = () => {
   const [health, setHealth] = useState(20);
   const [wave, setWave] = useState(1);
   const [selectedTool, setSelectedTool] = useState<EntityType | null>(null);
+  
+  // Selection State
   const [selectedTower, setSelectedTower] = useState<Tower | null>(null);
+  const [selectedEnemy, setSelectedEnemy] = useState<BaseEnemy | null>(null);
   
   // Audio State
   const [musicVol, setMusicVol] = useState(1.0);
@@ -154,30 +157,40 @@ const App: React.FC = () => {
             setNextWaveType(eng.nextWaveType);
             setIsGameOver(!eng.gameState.gameActive);
             
+            // Sync Selection logic
             if (eng.input.selectedEntityId) {
-                const t = eng.entities.find(e => e.id === eng.input.selectedEntityId);
-                if (t && t.type.startsWith('TOWER')) {
-                    // @ts-ignore
-                    const tower = t as Tower;
-                    setSelectedTower(tower);
-                    
-                    // Force update if tower level changed (Upgrade happened)
-                    if (tower.level !== lastSelectedLevelRef.current) {
-                        lastSelectedLevelRef.current = tower.level;
-                        setTick(t => t + 1); // Triggers re-render to update UI
+                const ent = eng.entities.find(e => e.id === eng.input.selectedEntityId);
+                
+                if (ent) {
+                    if (ent.type.startsWith('TOWER')) {
+                        // TOWER SELECTED
+                        const tower = ent as Tower;
+                        setSelectedTower(tower);
+                        setSelectedEnemy(null);
+                        
+                        // Force update if tower level changed (Upgrade happened)
+                        if (tower.level !== lastSelectedLevelRef.current) {
+                            lastSelectedLevelRef.current = tower.level;
+                            setTick(t => t + 1); 
+                        }
+                    } 
+                    else if (ent.type === EntityType.ENEMY_MINION) {
+                        // ENEMY SELECTED
+                        const enemy = ent as BaseEnemy;
+                        setSelectedEnemy(enemy);
+                        setSelectedTower(null);
+                        setTick(t => t + 1); // Updates HP bar every frame
                     }
                 } else {
+                    // Entity might have died/been removed while selected
                     setSelectedTower(null);
-                    lastSelectedLevelRef.current = -1;
+                    setSelectedEnemy(null);
+                    eng.input.selectedEntityId = null;
                 }
             } else {
-                setSelectedTower(prev => {
-                    if (prev) {
-                        lastSelectedLevelRef.current = -1;
-                        return null;
-                    }
-                    return prev;
-                });
+                // Deselected
+                setSelectedTower(null);
+                setSelectedEnemy(null);
             }
         }
   
@@ -199,11 +212,10 @@ const App: React.FC = () => {
 
     const engine = new GameEngine(canvasRef.current, {
         onBuild: () => {
-            // Build happened, we might want to clear tool or keep it. 
-            // Usually keep it for rapid building, but let's clear if shift not held (not implemented yet)
+            // Build happened
         },
         onSelect: (entityId) => {
-             if (!entityId) setSelectedTower(null);
+             // Handled in loop
         }
     });
 
@@ -270,6 +282,7 @@ const App: React.FC = () => {
       if (newTool) {
           engineRef.current.input.selectedEntityId = null;
           setSelectedTower(null);
+          setSelectedEnemy(null);
       }
     }
   };
@@ -374,10 +387,11 @@ const App: React.FC = () => {
             case 'KeyP':
                 if (selectedTool) {
                     handleToolSelect(null);
-                } else if (selectedTower) {
+                } else if (selectedTower || selectedEnemy) {
                     if (engineRef.current) {
                         engineRef.current.input.deselectAll();
                         setSelectedTower(null);
+                        setSelectedEnemy(null);
                     }
                 } else {
                     handlePause();
@@ -397,7 +411,7 @@ const App: React.FC = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [loadingState, selectedTool, selectedTower, timeScale, isPaused, viewMode]); 
+  }, [loadingState, selectedTool, selectedTower, selectedEnemy, timeScale, isPaused, viewMode]); 
 
   return (
     <div className="relative w-full h-full bg-slate-900 select-none font-sans overflow-hidden" onContextMenu={(e) => e.preventDefault()}>
@@ -451,6 +465,10 @@ const App: React.FC = () => {
                     onUpgrade={handleUpgrade}
                     onSell={handleSell}
                 />
+            )}
+
+            {selectedEnemy && (
+                <EnemyPanel enemy={selectedEnemy} />
             )}
 
             <BuildMenu 

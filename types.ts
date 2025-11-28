@@ -26,6 +26,13 @@ export enum EntityType {
   CRYSTAL = 'CRYSTAL'
 }
 
+export enum DamageType {
+  KINETIC = 'KINETIC',     // Bullets (Basic)
+  PIERCING = 'PIERCING',   // Railgun (Sniper)
+  EXPLOSIVE = 'EXPLOSIVE', // Shockwave (Pulse)
+  ENERGY = 'ENERGY'        // Beam (Laser)
+}
+
 export enum EnemyVariant {
   NORMAL = 'NORMAL',
   FAST = 'FAST',
@@ -35,6 +42,7 @@ export enum EnemyVariant {
   MECH = 'MECH',
   HEALER = 'HEALER',     
   SPLITTER = 'SPLITTER', 
+  PHALANX = 'PHALANX', // New Mob
   
   // Boss Tiers
   BOSS_MK1 = 'BOSS_MK1',   

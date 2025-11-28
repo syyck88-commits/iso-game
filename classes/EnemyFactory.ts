@@ -1,7 +1,7 @@
 
 import { EnemyVariant, Vector2 } from '../types';
 import { BaseEnemy } from './enemies/BaseEnemy';
-import { NormalEnemy, FastEnemy, TankEnemy, SwarmEnemy } from './enemies/MinionEnemies';
+import { NormalEnemy, FastEnemy, TankEnemy, SwarmEnemy, PhalanxEnemy } from './enemies/MinionEnemies';
 import { HealerEnemy, SplitterEnemy, MechEnemy, GhostEnemy } from './enemies/SpecialEnemies';
 import { BossMk1 } from './enemies/bosses/BossMk1';
 import { BossMk2 } from './enemies/bosses/BossMk2';
@@ -14,6 +14,8 @@ export class EnemyFactory {
             case EnemyVariant.FAST: return new FastEnemy(path, wave);
             case EnemyVariant.TANK: return new TankEnemy(path, wave);
             case EnemyVariant.SWARM: return new SwarmEnemy(path, wave);
+            case EnemyVariant.PHALANX: return new PhalanxEnemy(path, wave);
+            
             case EnemyVariant.HEALER: return new HealerEnemy(path, wave);
             case EnemyVariant.SPLITTER: return new SplitterEnemy(path, wave);
             case EnemyVariant.MECH: return new MechEnemy(path, wave);

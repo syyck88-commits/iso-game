@@ -1,12 +1,12 @@
 
-
-import { EntityType, Vector2, ParticleBehavior } from '../../types';
+import { EntityType, Vector2, ParticleBehavior, DamageType } from '../../types';
 import { BaseTower } from './BaseTower';
 import { GameEngine } from '../GameEngine';
 import { BaseEnemy } from '../enemies/BaseEnemy';
 import { Shell, ParticleEffect } from '../Particle';
 
 export class BasicTower extends BaseTower {
+    damageType = DamageType.KINETIC;
     barrelAngle: number = 0;
     spinSpeed: number = 0;
 

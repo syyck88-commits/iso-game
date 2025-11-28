@@ -1,12 +1,12 @@
 
-
-import { EntityType, Vector2, ParticleBehavior } from '../../types';
+import { EntityType, Vector2, ParticleBehavior, DamageType } from '../../types';
 import { BaseTower } from './BaseTower';
 import { GameEngine } from '../GameEngine';
 import { BaseEnemy } from '../enemies/BaseEnemy';
 import { ParticleEffect } from '../Particle';
 
 export class LaserTower extends BaseTower {
+    damageType = DamageType.ENERGY;
     laserCharge: number = 0;
     laserBeamWidth: number = 0;
     
@@ -141,9 +141,11 @@ export class LaserTower extends BaseTower {
                 
                 // Damage is already time-based (dt/16), so it scales correctly with tick
                 const actualDamage = (this.damage * (1 + this.laserCharge)) * (dt / 16); 
-                target.health -= actualDamage;
+                
+                // Use takeDamage for resistance calculation
+                const dealt = target.takeDamage(actualDamage, this.damageType, engine);
 
-                if (target.health <= 0) {
+                if (target.health <= 0 && dealt > 0) {
                     this.killCount++;
                 }
 
@@ -257,6 +259,7 @@ export class LaserTower extends BaseTower {
         ctx.beginPath(); ctx.arc(0, -4, 2, 0, Math.PI*2); ctx.fill();
         ctx.restore();
 
+        ctx.restore();
         ctx.restore();
     }
 }

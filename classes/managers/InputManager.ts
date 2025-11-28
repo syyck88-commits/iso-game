@@ -1,5 +1,4 @@
 
-
 import { GameEngine } from '../GameEngine';
 import { Vector2, GridPoint, EntityType, GRID_SIZE } from '../../types';
 import { toGrid } from '../../utils/isoMath';
@@ -58,54 +57,43 @@ export class InputManager {
     this.engine.audio.ensureContext();
     if (!this.engine.gameState.gameActive) return;
 
-    // --- SELECTION LOGIC V2 ---
-    // User complaint: Hard to select tower, easier to accidentally build.
-    // Fix: Strict Grid Priority.
-
-    // 1. Is the mouse over a valid grid tile?
+    // --- SELECTION LOGIC ---
+    
+    // 1. Check for Tower Click (Precise Grid Check)
     if (this.hoverTile) {
         const { gx, gy } = this.hoverTile;
-
-        // Check if there is an Entity (Tower) on this tile specifically
-        // We use the grid coordinate to find it, which is 100% accurate for towers.
-        // We exclude Projectiles/Particles/Text.
-        const entityOnTile = this.engine.entities.find(e => 
+        const towerOnTile = this.engine.entities.find(e => 
             e.gridPos.x === gx && 
             e.gridPos.y === gy && 
-            e.type.startsWith('TOWER') // Strictly towers
+            e.type.startsWith('TOWER')
         );
 
-        if (entityOnTile) {
-            // USER INTENT: SELECT TOWER
-            // Even if Build Mode is active, clicking an existing tower should select it
-            // so they can upgrade/sell it.
-            this.selectedEntityId = entityOnTile.id;
-            
-            // Notify UI
-            if (this.engine.callbacks.onSelect) this.engine.callbacks.onSelect(entityOnTile.id);
+        if (towerOnTile) {
+            this.selectedEntityId = towerOnTile.id;
+            this.engine.audio.playBuild(); 
+            if (this.engine.callbacks.onSelect) this.engine.callbacks.onSelect(towerOnTile.id);
             if (this.engine.callbacks.onBuild) this.engine.callbacks.onBuild(); 
-            this.engine.audio.playBuild(); // Use generic click/interaction sound
             return;
         }
 
-        // 2. If no tower, are we in Build Mode?
+        // If no tower, but we are in build mode, BUILD.
         if (this.selectedTowerType) {
-            // USER INTENT: BUILD
             this.engine.buildTower(this.hoverTile, this.selectedTowerType);
             return;
         }
     }
 
-    // 3. Fallback: Check Screen-Space Entity Hit (For flying enemies, etc)
-    // Only if we didn't interact with a tile logic above.
+    // 2. Check for Enemy Click (Screen Space Raycast)
+    // If we didn't click a tower or build, try to select an enemy
     const hitEntity = this.getHitEntity(this.mouseScreenPos.x, this.mouseScreenPos.y);
     if (hitEntity) {
         this.selectedEntityId = hitEntity.id;
         if (this.engine.callbacks.onSelect) this.engine.callbacks.onSelect(hitEntity.id);
+        this.engine.audio.playBuild(); // Use basic UI click sound
         return;
     }
 
-    // 4. Clicked Empty Void -> Deselect
+    // 3. Clicked Empty Void -> Deselect
     this.deselectAll();
   }
 
@@ -125,14 +113,21 @@ export class InputManager {
   setSelectedTowerType(type: EntityType | null) {
       this.selectedTowerType = type;
       if (type) {
-          this.selectedEntityId = null; // Clear selection when picking tool
+          this.selectedEntityId = null; 
           if (this.engine.callbacks.onSelect) this.engine.callbacks.onSelect(null);
       }
   }
 
   getHitEntity(sx: number, sy: number) {
      // Check hit against entities (front-to-back sort for checking)
-     const checkList = this.engine.entities.filter(e => e.type !== EntityType.FLOATING_TEXT && e.type !== EntityType.PROJECTILE);
+     // Filter out non-selectable things
+     const checkList = this.engine.entities.filter(e => 
+         e.type !== EntityType.FLOATING_TEXT && 
+         e.type !== EntityType.PROJECTILE &&
+         e.type !== EntityType.PARTICLE
+     );
+     
+     // Sort by depth (closest to camera first)
      checkList.sort((a, b) => b.depth - a.depth);
 
      for (const ent of checkList) {
@@ -142,7 +137,9 @@ export class InputManager {
 
          // Adjust hit box for visuals
          visualY -= ent.zHeight; 
-         if (ent.type === EntityType.TOWER_SNIPER) visualY -= 30;
+         
+         // Larger hitbox for flying/bosses
+         if (ent.zHeight > 10) radius = 40;
 
          const dx = sx - pos.x;
          const dy = sy - visualY;

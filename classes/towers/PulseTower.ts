@@ -1,12 +1,12 @@
 
-
-import { EntityType, Vector2, ParticleBehavior } from '../../types';
+import { EntityType, Vector2, ParticleBehavior, DamageType } from '../../types';
 import { BaseTower } from './BaseTower';
 import { GameEngine } from '../GameEngine';
 import { ParticleEffect } from '../Particle';
 import { BaseEnemy } from '../enemies/BaseEnemy';
 
 export class PulseTower extends BaseTower {
+    damageType = DamageType.EXPLOSIVE;
     // Visual State
     coreHeight: number = 0;
     spinAngle: number = 0;
@@ -101,11 +101,12 @@ export class PulseTower extends BaseTower {
 
                   // Apply Damage & Slow
                   enemiesInRange.forEach(e => {
-                      e.health -= this.damage;
+                      const damageDealt = e.takeDamage(this.damage, this.damageType, engine);
+                      
                       // Apply Slow Effect (2 seconds)
                       e.applySlow(2000); 
 
-                      if (e.health <= 0) this.killCount++;
+                      if (e.health <= 0 && damageDealt > 0) this.killCount++;
                       
                       // Hit Effect on Enemy
                       const hitFlash = new ParticleEffect(

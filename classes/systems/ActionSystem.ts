@@ -99,7 +99,7 @@ export class ActionSystem {
     }
 
     spawnProjectile(source: Tower, target: BaseEnemy) {
-        const proj = new Projectile(source.gridPos, target, source.damage, source.id);
+        const proj = new Projectile(source.gridPos, target, source.damage, source.damageType, source.id);
         if (this.engine.preview.active) {
             this.engine.preview.entities.push(proj);
         } else {

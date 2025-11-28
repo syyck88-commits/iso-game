@@ -1,6 +1,5 @@
 
-
-import { EntityType, Vector2 } from '../../types';
+import { EntityType, Vector2, DamageType } from '../../types';
 import { BaseEntity } from '../BaseEntity';
 import { GameEngine } from '../GameEngine';
 import { BaseEnemy } from '../enemies/BaseEnemy';
@@ -16,6 +15,9 @@ export abstract class BaseTower extends BaseEntity {
   recoil: number = 0; 
   constructionScale: number = 0; // Animation
   
+  // Type of damage this tower deals
+  abstract damageType: DamageType;
+
   // Rotation Logic
   turnSpeed: number = 5; // Radians per second
 

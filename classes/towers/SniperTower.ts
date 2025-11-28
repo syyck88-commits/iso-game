@@ -1,12 +1,12 @@
 
-
-import { EntityType, Vector2, ParticleBehavior } from '../../types';
+import { EntityType, Vector2, ParticleBehavior, DamageType } from '../../types';
 import { BaseTower } from './BaseTower';
 import { GameEngine } from '../GameEngine';
 import { BaseEnemy } from '../enemies/BaseEnemy';
 import { ParticleEffect, Shell } from '../Particle';
 
 export class SniperTower extends BaseTower {
+    damageType = DamageType.PIERCING;
     // Visual state
     chargeLevel: number = 0;
     ventTimer: number = 0;
