@@ -178,10 +178,18 @@ export class Tracker {
         src.connect(gain);
         gain.connect(this.core.musicBus); // Route to main engine bus
         
-        // Echo send
-        if ((s.inst === 'lead' || s.inst === 'acid') && this.echoOn && this.delayNode) {
+        // Echo send (Data Driven > Legacy Fallback)
+        let sendAmount = 0;
+        if (s.delay !== undefined) {
+            sendAmount = s.delay;
+        } else {
+            // Legacy fallback for tracks without explicit delay setting
+            if (s.inst === 'lead' || s.inst === 'acid') sendAmount = 0.4;
+        }
+
+        if (sendAmount > 0 && this.echoOn && this.delayNode) {
             const send = this.core.ctx.createGain();
-            send.gain.value = 0.4;
+            send.gain.value = sendAmount;
             gain.connect(send);
             send.connect(this.delayNode);
         }

@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 
 interface LoadingScreenProps {
     loadingState: 'INIT' | 'LOADING' | 'READY' | 'ERROR';
@@ -14,6 +14,14 @@ interface LoadingScreenProps {
 export const LoadingScreen: React.FC<LoadingScreenProps> = ({ 
     loadingState, progress, statusLog, errorMsg, initComplete, onStart, onForceStart 
 }) => {
+    const logRef = useRef<HTMLDivElement>(null);
+
+    // Auto-scroll to bottom on log update
+    useEffect(() => {
+        if (logRef.current) {
+            logRef.current.scrollTop = logRef.current.scrollHeight;
+        }
+    }, [statusLog]);
     
     if (loadingState === 'ERROR') {
         return (
@@ -61,7 +69,10 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
                         <span>{Math.round(progress)}%</span>
                     </div>
 
-                    <div className="w-full bg-black/90 border border-slate-800 rounded p-4 h-80 overflow-y-auto flex flex-col-reverse shadow-inner font-mono text-xs">
+                    <div 
+                        ref={logRef}
+                        className="w-full bg-black/90 border border-slate-800 rounded p-4 h-80 overflow-y-auto shadow-inner font-mono text-xs"
+                    >
                         <div className="flex flex-col justify-end min-h-full whitespace-pre-wrap">
                             {statusLog.map((log, i) => (
                                 <div key={i} className={`py-0.5 border-b border-white/5 break-all ${log.includes('ERROR') || log.includes('FAILED') ? 'text-rose-500 bg-rose-900/10' : 'text-emerald-500/90'}`}>

@@ -6,6 +6,7 @@ import { ParticleEffect } from '../../Particle';
 
 export class GhostEnemy extends BaseEnemy {
     glitchTimer: number = 0;
+    teleportTimer: number = 0;
     isGlitching: boolean = false;
 
     constructor(path: Vector2[], wave: number) {
@@ -18,21 +19,90 @@ export class GhostEnemy extends BaseEnemy {
     }
 
     onUpdate(dt: number, engine: GameEngine) {
+        // 1. Existing Glitch Effect
         this.glitchTimer += dt;
         if (this.glitchTimer > 100) {
             this.glitchTimer = 0;
             this.isGlitching = Math.random() > 0.8;
         }
+
+        // 2. Teleportation Logic
+        this.teleportTimer += dt;
+        
+        // Try to teleport every 2 seconds with a 20% chance
+        if (this.teleportTimer > 2000) {
+            this.teleportTimer = 0;
+            
+            // Only teleport if healthy enough and random chance hits
+            if (Math.random() > 0.8) {
+                this.performTeleport(engine);
+            }
+        }
+    }
+
+    performTeleport(engine: GameEngine) {
+        // Calculate jump distance (skipping 3 to 6 tiles ahead)
+        const jump = 3 + Math.floor(Math.random() * 3);
+        const nextIndex = this.pathIndex + jump;
+
+        // Ensure we don't jump past the base
+        if (nextIndex < this.path.length - 1) {
+            const oldPos = engine.getScreenPos(this.gridPos.x, this.gridPos.y);
+            
+            // 1. VFX at Old Position (Glitch out)
+            const pOut = new ParticleEffect(oldPos, this.zHeight, '#06b6d4', {x:0,y:0}, 0.3, ParticleBehavior.FLOAT, 'FLASH');
+            pOut.size = 20;
+            engine.particles.push(pOut);
+            
+            // 2. Move Entity
+            this.pathIndex = nextIndex;
+            const dest = this.path[this.pathIndex];
+            this.gridPos.x = dest.x;
+            this.gridPos.y = dest.y;
+
+            // 3. VFX at New Position (Glitch in)
+            const newPos = engine.getScreenPos(this.gridPos.x, this.gridPos.y);
+            const pIn = new ParticleEffect(newPos, this.zHeight, '#fff', {x:0,y:0}, 0.3, ParticleBehavior.FLOAT, 'FLASH');
+            pIn.size = 25;
+            engine.particles.push(pIn);
+
+            // Audio feedback (High pitch blip)
+            engine.audio.playBuild(); 
+        }
     }
 
     onDeathUpdate(dt: number, engine: GameEngine) {
-        this.opacity -= dt * 0.002;
-        this.scale += dt * 0.005; 
+        this.deathTimer += dt;
         
-        if (Math.random() > 0.5) {
+        // Rising Zigzag Animation
+        
+        // 1. Rise Up
+        this.zHeight += dt * 0.06;
+        
+        // 2. Zigzag (Sine wave on X axis relative to grid)
+        // We modify gridPos slightly to create the wiggle
+        const wiggleSpeed = 0.01;
+        const wiggleAmount = 0.05;
+        this.gridPos.x += Math.sin(this.deathTimer * wiggleSpeed) * wiggleAmount;
+
+        // 3. Expand
+        this.scale += dt * 0.003; 
+        
+        // 4. Fade
+        this.opacity -= dt * 0.001; 
+        
+        // Spawn spirit particles occasionally
+        if (Math.random() > 0.8) {
              const pos = engine.getScreenPos(this.gridPos.x, this.gridPos.y);
-             const p = new ParticleEffect(pos, 20, '#06b6d4', {x:0,y:0}, 0.2, ParticleBehavior.FLOAT);
-             p.size = 2; 
+             const p = new ParticleEffect(
+                 pos, 
+                 this.zHeight, 
+                 'rgba(6, 182, 212, 0.5)', 
+                 {x: (Math.random()-0.5), y: 1}, // Fall down slightly as body goes up
+                 0.5, 
+                 ParticleBehavior.FLOAT
+             );
+             p.size = 3; 
              engine.particles.push(p);
         }
     }
@@ -43,7 +113,7 @@ export class GhostEnemy extends BaseEnemy {
         
         let gx = 0;
         let gy = 0;
-        if (this.isGlitching || this.isDying) {
+        if (this.isGlitching || (this.isDying && Math.random() > 0.7)) {
             gx = (Math.random() - 0.5) * 6;
             gy = (Math.random() - 0.5) * 2;
         }

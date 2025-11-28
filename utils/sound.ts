@@ -105,13 +105,13 @@ export class SoundEngine {
 
   setMusicState(state: MusicState) {
       if (state === 'BOSS' || state === 'PANIC') {
-          // Switch to Tracker Engine
+          // Switch to Tracker Engine (Boss Track)
           if (this.sequencer.isPlaying) {
               this.sequencer.isPlaying = false; // Soft stop legacy engine
           }
           this.tracker.playTrack(TRACK_DATA_BOSS);
       } else {
-          // Switch to Standard Engine (Legacy) for now
+          // Switch to Standard Engine (Legacy) for IDLE and COMBAT (until new track provided)
           this.tracker.stop();
           this.sequencer.setState(state);
           if (!this.sequencer.isPlaying) this.sequencer.start();
