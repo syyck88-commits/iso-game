@@ -4,11 +4,14 @@ import { Instruments } from './audio/Instruments';
 import { Sequencer } from './audio/Sequencer';
 import { SFX } from './audio/SFX';
 import { MusicState } from './audio/types';
+import { Tracker } from './audio/Tracker';
+import { TRACK_DATA_BOSS } from './audio/tracks/BossTrack';
 
 export class SoundEngine {
   core: AudioCore;
   instruments: Instruments;
   sequencer: Sequencer;
+  tracker: Tracker;
   sfx: SFX;
   isInitialized = false;
 
@@ -16,6 +19,7 @@ export class SoundEngine {
       this.core = new AudioCore();
       this.instruments = new Instruments(this.core);
       this.sequencer = new Sequencer(this.core, this.instruments);
+      this.tracker = new Tracker(this.core);
       this.sfx = new SFX(this.core, this.instruments);
   }
 
@@ -32,9 +36,9 @@ export class SoundEngine {
 
       log("Starting Sound Engine Initialization...");
       
-      // Instruments (7) + SFX (21) = 28 steps
+      // Instruments (7) + SFX (21) + Tracker (1) = 29 steps
       let completed = 0;
-      const totalSteps = 28;
+      const totalSteps = 29;
       
       const updateProgress = () => {
           completed++;
@@ -42,6 +46,11 @@ export class SoundEngine {
       };
 
       const waitFrame = () => new Promise(resolve => setTimeout(resolve, 15)); // Faster load
+
+      // --- TRACKER ENGINE (Primary) ---
+      await this.tracker.init(log);
+      updateProgress();
+      await waitFrame();
 
       // --- INSTRUMENTS ---
       log("Queueing Instruments...");
@@ -86,11 +95,27 @@ export class SoundEngine {
 
   ensureContext() {
       this.core.resume();
-      this.sequencer.start();
+      if (this.sequencer.isPlaying) return;
+      // Default to IDLE music start if not playing
+      // Note: Tracker is manually started via setMusicState
+      if (!this.sequencer.isPlaying) {
+          this.sequencer.start();
+      }
   }
 
   setMusicState(state: MusicState) {
-      this.sequencer.setState(state);
+      if (state === 'BOSS' || state === 'PANIC') {
+          // Switch to Tracker Engine
+          if (this.sequencer.isPlaying) {
+              this.sequencer.isPlaying = false; // Soft stop legacy engine
+          }
+          this.tracker.playTrack(TRACK_DATA_BOSS);
+      } else {
+          // Switch to Standard Engine (Legacy) for now
+          this.tracker.stop();
+          this.sequencer.setState(state);
+          if (!this.sequencer.isPlaying) this.sequencer.start();
+      }
   }
 
   setMusicVolume(vol: number) { this.core.setMusicVolume(vol); }

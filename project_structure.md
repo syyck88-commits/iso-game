@@ -88,16 +88,28 @@ Separates heavy canvas drawing logic from Entity classes for complex enemies.
 *   **`SpecialRenderers.ts`**: Drawing logic for Healer, Mech, Splitter, Ghost.
 *   **`BossRenderers.ts`**: Drawing logic for Bosses (used as fallbacks or components).
 
-## 4. Audio Subsystem (`utils/audio/`)
-A fully procedural audio engine (Web Audio API) that generates sound at runtime. No external assets.
+## 4. Hybrid Audio Subsystem (`utils/audio/`)
+The engine uses a **Hybrid Audio Architecture**.
 
+### Core
 *   **`AudioCore.ts`**: Manages `AudioContext`, Master Compressor, and Mixer Buses (Music vs SFX). Handles Reverb (Convolver) and Delay sends.
 *   **`Instruments.ts`**: Synthesis logic. Creates audio buffers for:
     *   Drums (Kick, Snare, Hats, Tom).
     *   Synths (808 Bass, Supersaws, Plucks, NES Triangles).
 *   **`SFX.ts`**: Procedural generation for game events (Explosions, Lasers, UI Clicks, Alarms).
+
+### System A: Tracker Music Engine (Primary)
+A high-performance player for complex, pre-composed music using a compact JSON format.
+*   **`Tracker.ts`**:
+    *   **Decompression**: Inflates GZIP-compressed song data from Base64.
+    *   **Runtime Baking**: Synthesizes specific instruments (Acid 303, Heavy Saws, 909 Drums) into buffers using `OfflineAudioContext` during the loading screen.
+    *   **Engine**: Parses delta-encoded note data and manages precise scheduling.
+*   **`tracks/TrackLibrary.ts`**: Registry of compressed song data strings (e.g., `TRACK_DATA_BOSS`).
+
+### System B: Procedural Sequencer (Legacy/Fallback)
+Used for Idle and Combat states until tracker data is available.
 *   **`Sequencer.ts`**: 16-step sequencer logic. Handles beat scheduling and dynamic track switching.
-*   **`Tracks.ts`**: Defines music data structures (Scales, Drum Patterns, Basslines) for different game states (Idle, Combat, Boss).
+*   **`Tracks.ts`**: Defines music data structures (Scales, Drum Patterns, Basslines) for different game states (Idle, Combat).
 
 ## 5. Utilities (`utils/`)
 *   **`isoMath.ts`**: Math helpers for Isometric Projection (Grid <-> Screen conversion).
