@@ -49,7 +49,7 @@ export class PulseTower extends BaseTower {
         flash.size = 50;
 
         if (engine.previewMode) {
-             engine.previewParticles.push(wave, waveInner, flash);
+             engine.preview.particles.push(wave, waveInner, flash);
         } else {
              engine.particles.push(wave, waveInner, flash);
         }

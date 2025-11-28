@@ -1,4 +1,5 @@
 
+
 import { EntityType, Vector2, ParticleBehavior } from '../../types';
 import { BaseTower } from './BaseTower';
 import { GameEngine } from '../GameEngine';
@@ -69,7 +70,7 @@ export class LaserTower extends BaseTower {
                 );
                 p.size = 2;
                 if (engine.previewMode) {
-                    engine.previewParticles.push(p);
+                    engine.preview.particles.push(p);
                 } else {
                     engine.particles.push(p);
                 }
