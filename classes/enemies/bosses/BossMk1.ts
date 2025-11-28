@@ -267,13 +267,6 @@ export class BossMk1 extends BossEnemy {
         });
 
         // --- BODY ---
-        if (!this.isDying) {
-            ctx.fillStyle = 'rgba(0,0,0,0.5)';
-            ctx.beginPath();
-            ctx.ellipse(renderPos.x, renderPos.y, 40, 15, 0, 0, Math.PI*2);
-            ctx.fill();
-        }
-
         const gradIron = ctx.createLinearGradient(renderPos.x, bodyY - 10, renderPos.x, bodyY + 20);
         gradIron.addColorStop(0, '#4b5563');
         gradIron.addColorStop(1, '#1f2937');
