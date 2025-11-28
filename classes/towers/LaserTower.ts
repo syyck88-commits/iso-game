@@ -1,5 +1,4 @@
 
-
 import { EntityType, Vector2, ParticleBehavior } from '../../types';
 import { BaseTower } from './BaseTower';
 import { GameEngine } from '../GameEngine';
@@ -15,8 +14,9 @@ export class LaserTower extends BaseTower {
     ringAngleY: number = 0;
     heatTimer: number = 0;
     
-    // Debug Target tracking
+    // Target caching for performance
     debugTarget: BaseEnemy | null = null;
+    focusedTarget: BaseEnemy | null = null;
 
     constructor(x: number, y: number) {
         super(EntityType.TOWER_LASER, x, y);
@@ -85,11 +85,22 @@ export class LaserTower extends BaseTower {
 
         // Verify existing target
         if (!target && this.targetId) {
-            const existing = enemies.find(e => e.id === this.targetId);
-            if (existing && existing.health > 0 && !existing.isDying) {
-                const dist = this.getDist(existing.gridPos);
-                if (dist <= this.range) {
-                    target = existing;
+            // Check cached target first to avoid array search if possible
+            if (this.focusedTarget && this.focusedTarget.id === this.targetId && this.focusedTarget.health > 0 && !this.focusedTarget.isDying) {
+                 const dist = this.getDist(this.focusedTarget.gridPos);
+                 if (dist <= this.range) {
+                     target = this.focusedTarget;
+                 }
+            }
+            
+            // Fallback to array search if cache miss or invalid
+            if (!target) {
+                const existing = enemies.find(e => e.id === this.targetId);
+                if (existing && existing.health > 0 && !existing.isDying) {
+                    const dist = this.getDist(existing.gridPos);
+                    if (dist <= this.range) {
+                        target = existing;
+                    }
                 }
             }
         }
@@ -111,6 +122,7 @@ export class LaserTower extends BaseTower {
 
         if (target) {
             this.targetId = target.id;
+            this.focusedTarget = target; // Cache for Renderer and next Update
 
             // Rotation Logic
             const screenT = engine.getScreenPos(target.gridPos.x, target.gridPos.y);
@@ -150,6 +162,7 @@ export class LaserTower extends BaseTower {
 
         } else {
             this.targetId = null;
+            this.focusedTarget = null;
         }
     }
 

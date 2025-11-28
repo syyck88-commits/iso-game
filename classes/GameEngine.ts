@@ -1,3 +1,4 @@
+
 import { Vector2, GridPoint, EntityType, GameState, EnemyVariant, ParticleBehavior, GRID_SIZE } from '../types';
 import { toScreen, toGrid } from '../utils/isoMath';
 import { SoundEngine } from '../utils/sound';
@@ -265,14 +266,14 @@ export class GameEngine {
     const renderables = [...this.entities, ...this.particles].sort((a, b) => a.depth - b.depth);
 
     renderables.forEach(ent => {
-      this.drawEntityWithLasers(this.ctx, ent, this.entities);
+      this.drawEntityWithLasers(this.ctx, ent);
     });
 
     this.renderer.postDraw(); 
   }
 
   // Extracted logic to support both Main and Preview renderers
-  drawEntityWithLasers(ctx: CanvasRenderingContext2D, ent: BaseEntity | ParticleEffect, entityList: BaseEntity[]) {
+  drawEntityWithLasers(ctx: CanvasRenderingContext2D, ent: BaseEntity | ParticleEffect) {
       let screenPos: Vector2;
       if (ent.type === EntityType.PARTICLE) {
          screenPos = (ent as ParticleEffect).screenPos;
@@ -281,61 +282,62 @@ export class GameEngine {
          screenPos = this.getScreenPos(ent.gridPos.x, ent.gridPos.y);
          screenPos.y -= ent.zHeight;
          
-         if (ent instanceof LaserTower && ent.targetId) {
+         if (ent instanceof LaserTower && ent.laserCharge > 0) {
              ent.draw(ctx, screenPos);
-             if (ent.laserCharge > 0) {
-                 const t = entityList.find(e => e.id === ent.targetId);
-                 if (t) {
-                    const targetPos = this.getScreenPos(t.gridPos.x, t.gridPos.y);
-                    targetPos.y -= (t.zHeight + 15); 
-                    
-                    const startX = screenPos.x + Math.cos(ent.rotation) * 5;
-                    const startY = screenPos.y - 45 * ent.constructionScale + Math.sin(ent.rotation) * 5;
-                    
-                    ctx.save();
-                    ctx.globalCompositeOperation = 'lighter';
-                    
-                    const pulse = Math.sin(Date.now() / 50) * 0.2 + 0.8;
-                    const chargeWidth = ent.laserBeamWidth || 1;
-                    
-                    ctx.strokeStyle = '#fff';
-                    ctx.lineWidth = Math.min(3, chargeWidth);
-                    ctx.beginPath(); ctx.moveTo(startX, startY); ctx.lineTo(targetPos.x, targetPos.y); ctx.stroke();
-                    
-                    const chargeColor = ent.laserCharge > 1.5 ? '#a5f3fc' : '#06b6d4'; 
-                    ctx.strokeStyle = chargeColor;
-                    ctx.lineWidth = Math.min(8, chargeWidth * 2.5) * pulse;
-                    ctx.shadowColor = chargeColor;
-                    ctx.shadowBlur = 10 * pulse;
-                    ctx.beginPath(); ctx.moveTo(startX, startY); ctx.lineTo(targetPos.x, targetPos.y); ctx.stroke();
-                    
-                    if (ent.laserCharge > 0.5) {
-                        ctx.strokeStyle = '#22d3ee';
-                        ctx.lineWidth = 1;
-                        ctx.shadowBlur = 0;
-                        ctx.beginPath();
-                        const dx = targetPos.x - startX;
-                        const dy = targetPos.y - startY;
-                        const dist = Math.sqrt(dx*dx + dy*dy);
-                        const angle = Math.atan2(dy, dx);
-                        const loops = Math.floor(dist / 20);
-                        const timeOffset = Date.now() / 100;
+             
+             // Optimized: Use cached target from the tower instance if available
+             const target = ent.focusedTarget;
+             
+             if (target) {
+                const targetPos = this.getScreenPos(target.gridPos.x, target.gridPos.y);
+                targetPos.y -= (target.zHeight + 15); 
+                
+                const startX = screenPos.x + Math.cos(ent.rotation) * 5;
+                const startY = screenPos.y - 45 * ent.constructionScale + Math.sin(ent.rotation) * 5;
+                
+                ctx.save();
+                ctx.globalCompositeOperation = 'lighter';
+                
+                const pulse = Math.sin(Date.now() / 50) * 0.2 + 0.8;
+                const chargeWidth = ent.laserBeamWidth || 1;
+                
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = Math.min(3, chargeWidth);
+                ctx.beginPath(); ctx.moveTo(startX, startY); ctx.lineTo(targetPos.x, targetPos.y); ctx.stroke();
+                
+                const chargeColor = ent.laserCharge > 1.5 ? '#a5f3fc' : '#06b6d4'; 
+                ctx.strokeStyle = chargeColor;
+                ctx.lineWidth = Math.min(8, chargeWidth * 2.5) * pulse;
+                ctx.shadowColor = chargeColor;
+                ctx.shadowBlur = 10 * pulse;
+                ctx.beginPath(); ctx.moveTo(startX, startY); ctx.lineTo(targetPos.x, targetPos.y); ctx.stroke();
+                
+                if (ent.laserCharge > 0.5) {
+                    ctx.strokeStyle = '#22d3ee';
+                    ctx.lineWidth = 1;
+                    ctx.shadowBlur = 0;
+                    ctx.beginPath();
+                    const dx = targetPos.x - startX;
+                    const dy = targetPos.y - startY;
+                    const dist = Math.sqrt(dx*dx + dy*dy);
+                    const angle = Math.atan2(dy, dx);
+                    const loops = Math.floor(dist / 20);
+                    const timeOffset = Date.now() / 100;
 
-                        for(let i=0; i<=dist; i+=5) {
-                            const pct = i/dist;
-                            const x = startX + Math.cos(angle) * i;
-                            const y = startY + Math.sin(angle) * i;
-                            const perpAngle = angle + Math.PI/2;
-                            const wave = Math.sin(pct * loops * Math.PI + timeOffset) * (4 * pulse);
-                            const finalX = x + Math.cos(perpAngle) * wave;
-                            const finalY = y + Math.sin(perpAngle) * wave;
-                            if (i===0) ctx.moveTo(finalX, finalY);
-                            else ctx.lineTo(finalX, finalY);
-                        }
-                        ctx.stroke();
+                    for(let i=0; i<=dist; i+=5) {
+                        const pct = i/dist;
+                        const x = startX + Math.cos(angle) * i;
+                        const y = startY + Math.sin(angle) * i;
+                        const perpAngle = angle + Math.PI/2;
+                        const wave = Math.sin(pct * loops * Math.PI + timeOffset) * (4 * pulse);
+                        const finalX = x + Math.cos(perpAngle) * wave;
+                        const finalY = y + Math.sin(perpAngle) * wave;
+                        if (i===0) ctx.moveTo(finalX, finalY);
+                        else ctx.lineTo(finalX, finalY);
                     }
-                    ctx.restore();
-                 }
+                    ctx.stroke();
+                }
+                ctx.restore();
              }
          } else {
              ent.draw(ctx, screenPos);
@@ -389,7 +391,7 @@ export class GameEngine {
       const renderables = [...this.previewEntities, ...this.previewParticles].sort((a, b) => a.depth - b.depth);
       
       renderables.forEach(ent => {
-           this.drawEntityWithLasers(ctx, ent, this.previewEntities);
+           this.drawEntityWithLasers(ctx, ent);
       });
 
       ctx.restore();

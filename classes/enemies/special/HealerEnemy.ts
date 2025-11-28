@@ -3,7 +3,6 @@ import { EnemyVariant, Vector2, ParticleBehavior } from '../../../types';
 import { BaseEnemy } from '../BaseEnemy';
 import { GameEngine } from '../../GameEngine';
 import { ParticleEffect, Debris } from '../../Particle';
-import { drawHealer } from '../../renderers/enemies/SpecialRenderers';
 
 export class HealerEnemy extends BaseEnemy {
     regenTimer: number = 0;
@@ -31,8 +30,6 @@ export class HealerEnemy extends BaseEnemy {
                     const dy = e.gridPos.y - this.gridPos.y;
                     if (dx*dx + dy*dy < 9) {
                         e.health = Math.min(e.maxHealth, e.health + 10);
-                        const start = engine.getScreenPos(this.gridPos.x, this.gridPos.y);
-                        const end = engine.getScreenPos(e.gridPos.x, e.gridPos.y);
                         engine.spawnParticle(e.gridPos, e.zHeight + 10, '#4ade80');
                     }
                 }
@@ -105,6 +102,96 @@ export class HealerEnemy extends BaseEnemy {
     }
 
     drawModel(ctx: CanvasRenderingContext2D, pos: Vector2) {
-        drawHealer(ctx, pos, Date.now() / 200 + this.wobbleOffset, this.isDying);
+        const time = Date.now() / 200 + this.wobbleOffset;
+        const isDying = this.isDying;
+
+        // VISUAL UPDATE: Advanced Medical Drone
+        // If dying, the hover fails and it shakes
+        const hover = isDying ? Math.sin(time * 30) * 2 : Math.sin(time * 1.5) * 4;
+        const floatY = pos.y - 25 + hover;
+        
+        // 1. Rotating Shield Segments
+        // If dying, shields are gone (exploded off)
+        if (!isDying) {
+            ctx.save();
+            ctx.translate(pos.x, floatY);
+            ctx.rotate(time * 0.8);
+            
+            ctx.fillStyle = 'rgba(74, 222, 128, 0.4)';
+            ctx.strokeStyle = '#4ade80';
+            ctx.lineWidth = 1;
+            
+            for(let i=0; i<3; i++) {
+                ctx.rotate((Math.PI * 2) / 3);
+                ctx.beginPath();
+                ctx.arc(14, 0, 4, 0, Math.PI*2);
+                ctx.fill();
+                ctx.stroke();
+                
+                // Energy tether to center
+                ctx.beginPath();
+                ctx.moveTo(10, 0);
+                ctx.lineTo(4, 0);
+                ctx.stroke();
+            }
+            ctx.restore();
+        }
+
+        // 2. Main Body (White Capsule)
+        // Critical state flashes red/white
+        if (isDying && Math.floor(time * 10) % 2 === 0) {
+            ctx.fillStyle = '#fee2e2'; // Reddish white
+        } else {
+            ctx.fillStyle = '#f1f5f9'; // Slate 100
+        }
+        
+        ctx.beginPath();
+        ctx.ellipse(pos.x, floatY, 8, 10, 0, 0, Math.PI*2);
+        ctx.fill();
+        
+        // 3. Tech Details
+        ctx.fillStyle = '#0f172a'; // Dark slate
+        ctx.fillRect(pos.x - 8, floatY - 2, 16, 4); // Belt
+        
+        // 4. Holographic Cross Projection
+        if (!isDying) {
+            ctx.save();
+            ctx.translate(pos.x, floatY);
+            const pulse = (Math.sin(time * 5) + 1) * 0.5; // 0 to 1
+            const size = 1 + pulse * 0.2;
+            ctx.scale(size, size);
+            
+            // Glow
+            ctx.shadowColor = '#22c55e';
+            ctx.shadowBlur = 10;
+            
+            ctx.fillStyle = '#22c55e';
+            ctx.beginPath();
+            ctx.rect(-3, -8, 6, 16);
+            ctx.rect(-8, -3, 16, 6);
+            ctx.fill();
+            
+            ctx.shadowBlur = 0;
+            ctx.restore();
+        } else {
+            // Dying: Broken cross, flickering off
+            if (Math.random() > 0.5) {
+                 ctx.fillStyle = '#166534'; // Dark green/broken
+                 ctx.fillRect(pos.x - 3, floatY - 8, 6, 16);
+            }
+        }
+        
+        // 5. Engine Thruster (Bottom)
+        // Dying: Sputtering
+        if (!isDying || Math.random() > 0.5) {
+            ctx.fillStyle = isDying ? '#ef4444' : '#60a5fa'; // Red if failing
+            ctx.globalAlpha = 0.8;
+            ctx.beginPath();
+            ctx.moveTo(pos.x - 4, floatY + 8);
+            ctx.lineTo(pos.x + 4, floatY + 8);
+            ctx.lineTo(pos.x, floatY + 14 + (Math.random() * 3));
+            ctx.fill();
+            ctx.globalAlpha = 1.0;
+        }
     }
 }
