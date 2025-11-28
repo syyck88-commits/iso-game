@@ -5,71 +5,70 @@ import { GameEngine } from '../../GameEngine';
 import { ParticleEffect, Debris } from '../../Particle';
 
 export class PhalanxEnemy extends BaseEnemy {
+    // State
     shieldAngle: number = 0;
-    corePulse: number = 0;
+    modeTimer: number = 0;
+    isLocked: boolean = false;
     
-    // Death physics for shields
-    shield1Pos: Vector2 = { x: 0, y: 0 };
-    shield2Pos: Vector2 = { x: 0, y: 0 };
-    shield1Vel: Vector2 = { x: 0, y: 0 };
-    shield2Vel: Vector2 = { x: 0, y: 0 };
+    // Death Physics (3 Shields)
+    shieldDebris: { pos: Vector2, vel: Vector2, rot: number, rotVel: number }[] = [];
 
     constructor(path: Vector2[], wave: number) {
         super(path, wave, EnemyVariant.PHALANX);
         const baseHp = 30 + (wave * 10);
-        this.maxHealth = baseHp * 4.0; // Very tanky (High HP)
+        this.maxHealth = baseHp * 3.5; 
         this.health = this.maxHealth;
-        this.speed = (0.03 + (Math.min(20, wave) * 0.001)) * 0.45; // Very Slow
-        this.moneyValue = 50;
-        this.zHeight = 20;
+        this.speed = (0.03 + (Math.min(20, wave) * 0.001)) * 0.5; // Slow base speed
+        this.moneyValue = 45;
+        this.zHeight = 25; // Floating
     }
 
-    // Custom damage logic to simulate armor plating
+    // Advanced Armor Logic
     takeDamage(amount: number, type: DamageType, engine: GameEngine): number {
-        // Phalanx has reactive plating. 
-        // Reduces Kinetic/Piercing by 60%
-        // Takes extra from Energy/Explosive
         let multiplier = 1.0;
         let label = '';
-        
-        // Armor Check
-        if (type === DamageType.KINETIC || type === DamageType.PIERCING) {
-            multiplier = 0.4; // Heavy Armor
-            label = "BLOCKED";
+        let isResist = false;
+
+        // "SHIELD WALL PROTOCOL" Logic
+        if (this.isLocked) {
+            // IMMUNE to EVERYTHING when locked
+            multiplier = 0;
+            label = 'IMMUNE';
+            isResist = true;
             
-            // Visual deflection sparks
-            if (Math.random() > 0.5) {
+            // Deflection sparks
+            if (Math.random() > 0.3) {
                 const pos = engine.getScreenPos(this.gridPos.x, this.gridPos.y);
-                const p = new ParticleEffect(pos, this.zHeight + 10, '#22d3ee', {x:(Math.random()-0.5)*4, y:-2}, 0.3, ParticleBehavior.PHYSICS);
-                p.size = 2;
+                const p = new ParticleEffect(
+                    {x: pos.x + (Math.random()-0.5)*10, y: pos.y - 10}, 
+                    this.zHeight, 
+                    '#fff', 
+                    {x:(Math.random()-0.5)*5, y:-2}, 
+                    0.3, 
+                    ParticleBehavior.PHYSICS,
+                    'FLASH'
+                );
+                p.size = 5;
                 engine.particles.push(p);
             }
-        }
-        else if (type === DamageType.ENERGY) {
-            multiplier = 1.5; // Shields melt
-            label = "MELT";
-        }
-        else if (type === DamageType.EXPLOSIVE) {
-            multiplier = 1.2; // Structure cracks
-            label = "CRACK";
+        } else {
+            // Orbit Mode: Standard Tankiness
+            if (type === DamageType.KINETIC) {
+                multiplier = 0.6; // Innate Armor
+                label = 'ARMOR';
+                isResist = true;
+            }
         }
 
         const finalDamage = amount * multiplier;
         this.health -= finalDamage;
 
-        // Custom Floating Text for resistance feedback
-        if (multiplier < 0.8 || multiplier > 1.1) {
-             const color = multiplier < 1.0 ? '#94a3b8' : '#22d3ee';
-             const text = label + ` ${Math.floor(finalDamage)}`;
-             // Only show sometimes to avoid clutter
-             if (Math.random() > 0.6) {
-                 engine.addFloatingText(text, this.gridPos, color, multiplier > 1.0);
-             }
-        } else {
-             // Standard damage text occasionally
-             if (Math.random() > 0.8) {
-                 engine.addFloatingText(`${Math.floor(finalDamage)}`, this.gridPos, '#fff');
-             }
+        // Feedback
+        if (label && Math.random() > 0.5) {
+             const color = isResist ? '#94a3b8' : '#fff';
+             engine.addFloatingText(label, this.gridPos, color, multiplier > 1.0);
+        } else if (Math.random() > 0.7 && finalDamage > 0) {
+             engine.addFloatingText(`${Math.floor(finalDamage)}`, this.gridPos, '#fff');
         }
 
         return finalDamage;
@@ -77,202 +76,268 @@ export class PhalanxEnemy extends BaseEnemy {
 
     getEnemyInfo() {
         return {
-            description: "Siege unit. High armor reduces Kinetic damage. Weak to Energy.",
-            weakness: [DamageType.ENERGY, DamageType.EXPLOSIVE],
+            description: "Tetra-Guardian. Cycles 'Shield Lock' mode which repairs armor. When locked, COMPLETELY IMMUNE to all damage.",
+            weakness: [DamageType.EXPLOSIVE, DamageType.ENERGY],
             resistance: [DamageType.KINETIC, DamageType.PIERCING]
         };
     }
 
     onUpdate(dt: number, engine: GameEngine) {
-        this.shieldAngle += dt * 0.001;
-        this.corePulse += dt * 0.005;
-        
-        // Heavy Hum Sound (simulated by particles)
-        if (Math.random() > 0.98) {
-             const pos = engine.getScreenPos(this.gridPos.x, this.gridPos.y);
-             const p = new ParticleEffect(
-                 {x: pos.x, y: pos.y + 10}, // Ground
-                 0, 
-                 'rgba(34, 211, 238, 0.2)', 
-                 {x: 0, y: -0.5}, 
-                 1.0, 
-                 ParticleBehavior.FLOAT
-             );
-             p.size = 10;
-             engine.particles.push(p);
+        this.modeTimer += dt;
+
+        // Cycle: 1.5s Orbit -> 2.0s Lock
+        if (!this.isLocked) {
+            // Orbit Mode
+            this.shieldAngle += dt * 0.002;
+            this.slowFactor = 1.0; // Normal speed
+            
+            // Triggers more often now (1.5s instead of 3s)
+            if (this.modeTimer > 1500) {
+                this.enterLockMode(engine);
+            }
+        } else {
+            // Lock Mode
+            // Shield angle is fixed in draw
+            this.slowFactor = 0.1; // Almost stop moving
+            
+            if (this.modeTimer > 2000) {
+                this.exitLockMode(engine);
+            }
         }
+        
+        // Apply speed modifier (BaseEnemy handles the multiply)
+        if (this.isLocked) {
+            this.applySlow(100); // Hack to force slow update
+        }
+    }
+
+    enterLockMode(engine: GameEngine) {
+        this.isLocked = true;
+        this.modeTimer = 0;
+        
+        // HEALING MECHANIC: Restore 50% Max HP
+        const healAmount = Math.floor(this.maxHealth * 0.5);
+        if (this.health < this.maxHealth) {
+            this.health = Math.min(this.maxHealth, this.health + healAmount);
+            engine.addFloatingText(`REPAIR +${healAmount}`, this.gridPos, '#4ade80', true);
+            
+            // Healing Particles
+            for(let i=0; i<8; i++) {
+                const p = new ParticleEffect(
+                    engine.getScreenPos(this.gridPos.x, this.gridPos.y),
+                    this.zHeight,
+                    '#4ade80',
+                    {x: (Math.random()-0.5)*3, y: -Math.random()*2},
+                    0.6,
+                    ParticleBehavior.FLOAT
+                );
+                p.size = 2;
+                engine.particles.push(p);
+            }
+        }
+
+        engine.audio.playImpactMetal(); // Clang sound
+        // Visual impact ring
+        const pos = engine.getScreenPos(this.gridPos.x, this.gridPos.y);
+        const ring = new ParticleEffect(pos, this.zHeight, '#22d3ee', {x:0,y:0}, 0.5, ParticleBehavior.FLOAT, 'SHOCKWAVE');
+        ring.size = 5;
+        engine.particles.push(ring);
+    }
+
+    exitLockMode(engine: GameEngine) {
+        this.isLocked = false;
+        this.modeTimer = 0;
+        engine.audio.playCancel(); // Power down sound
     }
 
     onDeathStart(engine: GameEngine) {
         super.onDeathStart(engine);
-        const pos = engine.getScreenPos(this.gridPos.x, this.gridPos.y);
+        engine.audio.playExplosion('large');
         
-        // Initial crack sound
-        engine.audio.playExplosion('medium');
-        
-        // Setup shield fall physics
-        this.shield1Pos = { x: 0, y: 0 };
-        this.shield2Pos = { x: 0, y: 0 };
-        
-        // Shield 1 flies left
-        this.shield1Vel = { x: -2 - Math.random(), y: -2 };
-        // Shield 2 flies right
-        this.shield2Vel = { x: 2 + Math.random(), y: -2 };
+        // Init 3 shields for debris physics
+        for(let i=0; i<3; i++) {
+            this.shieldDebris.push({
+                pos: { x: 0, y: 0 }, // Relative to center
+                vel: { 
+                    x: (Math.random() - 0.5) * 8, 
+                    y: -Math.random() * 5 
+                },
+                rot: (Math.PI * 2 * i) / 3,
+                rotVel: (Math.random() - 0.5) * 0.5
+            });
+        }
     }
 
     onDeathUpdate(dt: number, engine: GameEngine) {
-        const tick = dt / 16.0;
-        
         this.deathTimer += dt;
+        const tick = dt / 16.0;
 
-        // Animate Shields falling off
-        this.shield1Pos.x += this.shield1Vel.x * tick;
-        this.shield1Pos.y += this.shield1Vel.y * tick;
-        this.shield1Vel.y += 0.2 * tick; // Gravity
-        
-        this.shield2Pos.x += this.shield2Vel.x * tick;
-        this.shield2Pos.y += this.shield2Vel.y * tick;
-        this.shield2Vel.y += 0.2 * tick; // Gravity
-
-        // Core implosion sequence
-        if (this.deathTimer < 1000) {
-            this.scale = 1.0 - (this.deathTimer / 1000) * 0.5; // Shrink
-            // Violent shake
-            this.gridPos.x += (Math.random()-0.5) * 0.1;
-            this.gridPos.y += (Math.random()-0.5) * 0.1;
+        // Phase 1: Core Implosion (0-500ms)
+        if (this.deathTimer < 500) {
+            this.scale = 1.0 - (this.deathTimer / 500); // Core shrinks
+            this.zHeight += 0.5 * tick; // Rises slightly before drop
             
-            // Critical mass sparks
+            // Sucking particles
             if (Math.random() > 0.5) {
-                 const pos = engine.getScreenPos(this.gridPos.x, this.gridPos.y);
-                 const p = new ParticleEffect(pos, this.zHeight, '#22d3ee', {x:0,y:0}, 0.2, ParticleBehavior.FLOAT, 'FLASH');
-                 p.size = 20;
-                 engine.particles.push(p);
+                const pos = engine.getScreenPos(this.gridPos.x, this.gridPos.y);
+                const angle = Math.random() * Math.PI * 2;
+                const dist = 30;
+                const p = new ParticleEffect(
+                    {x: pos.x + Math.cos(angle)*dist, y: pos.y - this.zHeight + Math.sin(angle)*dist},
+                    0, '#22d3ee',
+                    {x: -Math.cos(angle)*3, y: -Math.sin(angle)*3},
+                    0.3, ParticleBehavior.FLOAT
+                );
+                p.size = 2;
+                engine.particles.push(p);
             }
-        } else {
-            // Final Pop
-            const pos = engine.getScreenPos(this.gridPos.x, this.gridPos.y);
-            engine.spawnExplosion(this.gridPos, '#06b6d4');
+        } 
+        // Phase 2: Shield Crash (500ms+)
+        else {
+            this.scale = 0; // Core gone
             
-            // Glass Shards
-            for(let i=0; i<10; i++) {
-                const vel = { x: (Math.random()-0.5)*8, y: (Math.random()-0.5)*8 };
-                engine.particles.push(new Debris(pos, this.zHeight, '#22d3ee', vel, 6, 6));
+            // Animate Debris
+            this.shieldDebris.forEach(deb => {
+                deb.pos.x += deb.vel.x * tick;
+                deb.pos.y += deb.vel.y * tick;
+                deb.rot += deb.rotVel * tick;
+                
+                deb.vel.y += 0.4 * tick; // Heavy Gravity
+                
+                // Floor collision (approximate relative Y)
+                if (deb.pos.y > this.zHeight) {
+                    deb.pos.y = this.zHeight;
+                    deb.vel.y *= -0.3; // Dampened bounce
+                    deb.vel.x *= 0.8;  // Friction
+                    deb.rotVel *= 0.8;
+                }
+            });
+
+            if (this.deathTimer > 2500) {
+                engine.removeEntity(this.id);
             }
-            
-            this.opacity = 0;
-            engine.removeEntity(this.id);
         }
     }
 
     drawModel(ctx: CanvasRenderingContext2D, pos: Vector2) {
-        const floatY = pos.y - this.zHeight + Math.sin(this.corePulse * 2) * 3;
-        const shieldState = this.health / this.maxHealth;
-        const shieldsActive = shieldState > 0;
+        const floatY = pos.y - this.zHeight + Math.sin(Date.now() / 400) * 4;
         
         ctx.save();
         ctx.translate(pos.x, floatY);
-        
-        if (this.isDying) {
-            const shake = Math.random() * 4;
-            ctx.translate(shake, shake);
+
+        // -- Sub-draw functions --
+        const drawCore = () => {
+            if (this.scale <= 0.01) return;
+            ctx.save();
             ctx.scale(this.scale, this.scale);
-        }
-
-        // --- BACK SHIELD ---
-        if (!this.isDying && shieldsActive) {
-            ctx.save();
-            ctx.rotate(this.shieldAngle);
-            ctx.fillStyle = 'rgba(8, 145, 178, 0.6)'; // Cyan 600 transparent
-            ctx.strokeStyle = '#22d3ee';
-            ctx.lineWidth = 1;
             
-            // Draw a curved plate
+            // Core Glow
+            const pulse = 10 + Math.sin(Date.now() / 100) * 5;
+            ctx.shadowColor = '#22d3ee';
+            ctx.shadowBlur = pulse;
+            
+            // Octahedron Core
+            ctx.fillStyle = '#0f172a'; // Black center
             ctx.beginPath();
-            ctx.arc(0, 0, 22, 0, Math.PI, false); // Bottom half
-            ctx.lineTo(22, -10);
-            ctx.arc(0, -10, 22, 0, Math.PI, true); // Top inner curve
+            ctx.moveTo(0, -15); ctx.lineTo(10, 0); ctx.lineTo(0, 15); ctx.lineTo(-10, 0);
             ctx.closePath();
             ctx.fill();
-            ctx.stroke();
-            ctx.restore();
-        } else if (this.isDying) {
-            // Fallen Shield 1
-            ctx.save();
-            ctx.translate(this.shield1Pos.x, this.shield1Pos.y);
-            ctx.rotate(this.shieldAngle + 1);
-            ctx.fillStyle = '#155e75';
-            ctx.beginPath(); ctx.arc(0, 0, 15, 0, Math.PI); ctx.fill();
-            ctx.restore();
-        }
-
-        // --- CORE (Octahedron) ---
-        // Inner Glow
-        const pulse = 10 + Math.sin(this.corePulse * 5) * 5;
-        ctx.shadowColor = '#06b6d4';
-        ctx.shadowBlur = pulse;
-        
-        const coreColor = this.health < this.maxHealth * 0.3 ? '#ef4444' : '#1e293b'; // Red if low HP
-        ctx.fillStyle = coreColor;
-        
-        ctx.beginPath();
-        ctx.moveTo(0, -15); // Top
-        ctx.lineTo(10, 0);  // Right
-        ctx.lineTo(0, 15);  // Bottom
-        ctx.lineTo(-10, 0); // Left
-        ctx.closePath();
-        ctx.fill();
-        
-        // Facets
-        ctx.fillStyle = 'rgba(255,255,255,0.1)';
-        ctx.beginPath(); ctx.moveTo(0, -15); ctx.lineTo(10,0); ctx.lineTo(0,0); ctx.fill();
-        ctx.fillStyle = 'rgba(0,0,0,0.2)';
-        ctx.beginPath(); ctx.moveTo(0, 15); ctx.lineTo(-10,0); ctx.lineTo(0,0); ctx.fill();
-        
-        // Energy Veins
-        ctx.strokeStyle = '#22d3ee';
-        ctx.lineWidth = 2;
-        ctx.shadowBlur = 5;
-        ctx.beginPath();
-        ctx.moveTo(0, -8); ctx.lineTo(0, 8);
-        ctx.moveTo(-5, 0); ctx.lineTo(5, 0);
-        ctx.stroke();
-        ctx.shadowBlur = 0;
-
-        // --- FRONT SHIELD ---
-        if (!this.isDying && shieldsActive) {
-            ctx.save();
-            ctx.rotate(this.shieldAngle + Math.PI); // Opposite side
             
-            // Glassy look
-            const alpha = 0.4 + (shieldState * 0.4); // Fades as HP drops
-            ctx.fillStyle = `rgba(103, 232, 249, ${alpha})`; 
-            ctx.strokeStyle = `rgba(165, 243, 252, ${alpha})`;
-            
+            // Inner Light
+            ctx.fillStyle = this.isLocked ? '#f0f9ff' : '#06b6d4'; // White when locked
             ctx.beginPath();
-            ctx.arc(0, 0, 22, 0, Math.PI, false);
-            ctx.lineTo(22, -10);
-            ctx.arc(0, -10, 22, 0, Math.PI, true);
-            ctx.closePath();
+            ctx.moveTo(0, -8); ctx.lineTo(5, 0); ctx.lineTo(0, 8); ctx.lineTo(-5, 0);
             ctx.fill();
-            ctx.stroke();
             
-            // Tech details
-            ctx.fillStyle = '#fff';
-            ctx.globalAlpha = 0.8;
-            ctx.fillRect(-18, -2, 4, 4);
-            ctx.fillRect(14, -2, 4, 4);
-            
+            ctx.shadowBlur = 0;
             ctx.restore();
-        } else if (this.isDying) {
-            // Fallen Shield 2
+        };
+
+        const drawShield = (i: number, angle: number) => {
             ctx.save();
-            ctx.translate(this.shield2Pos.x, this.shield2Pos.y);
-            ctx.rotate(this.shieldAngle + 2);
-            ctx.fillStyle = '#155e75';
-            ctx.beginPath(); ctx.arc(0, 0, 15, 0, Math.PI); ctx.fill();
+            const plateColor = this.isLocked ? '#0891b2' : '#1e293b'; // Glow vs Dark
+            const borderColor = this.isLocked ? '#67e8f9' : '#334155';
+
+            if (this.isLocked) {
+                // LOCKED FORMATION: Chevron wall in front
+                if (i === 0) ctx.translate(0, 5); // Center low
+                if (i === 1) { ctx.translate(-18, -5); ctx.rotate(-0.2); }
+                if (i === 2) { ctx.translate(18, -5); ctx.rotate(0.2); }
+                
+                // Shake if locked (strain)
+                ctx.translate((Math.random()-0.5)*2, (Math.random()-0.5)*2);
+            } else {
+                // ORBIT FORMATION
+                const radius = 25;
+                ctx.translate(Math.cos(angle) * radius, Math.sin(angle) * radius * 0.3); // Elliptical orbit
+            }
+
+            this.drawShieldPlate(ctx, plateColor, borderColor);
             ctx.restore();
+        };
+
+        // --- DRAW SEQUENCE ---
+        
+        if (this.isDying && this.deathTimer > 500) {
+            // Draw Crashed Debris
+            this.shieldDebris.forEach(deb => {
+                ctx.save();
+                ctx.translate(deb.pos.x, deb.pos.y); // Relative to center
+                ctx.rotate(deb.rot);
+                this.drawShieldPlate(ctx, '#334155'); // Dark dead color
+                ctx.restore();
+            });
+        } else {
+            if (this.isLocked) {
+                // Locked: Core is behind the shield wall
+                drawCore();
+                for (let i = 0; i < 3; i++) drawShield(i, 0);
+            } else {
+                // Orbit: Depth sorting
+                // Calculate shield depth
+                const shields = [0, 1, 2].map(i => {
+                    const angle = this.shieldAngle + (Math.PI * 2 * i) / 3;
+                    // Y > 0 is front, Y < 0 is back
+                    const y = Math.sin(angle); 
+                    return { i, angle, y };
+                });
+
+                // Sort Back to Front
+                shields.sort((a, b) => a.y - b.y);
+
+                // 1. Draw Back Shields (Negative Y)
+                shields.filter(s => s.y < 0).forEach(s => drawShield(s.i, s.angle));
+                
+                // 2. Draw Core (Middle)
+                drawCore();
+                
+                // 3. Draw Front Shields (Positive Y)
+                shields.filter(s => s.y >= 0).forEach(s => drawShield(s.i, s.angle));
+            }
         }
 
         ctx.restore();
+    }
+
+    drawShieldPlate(ctx: CanvasRenderingContext2D, fill: string, stroke: string = '') {
+        // Heavy Trapezoid shape
+        ctx.fillStyle = fill;
+        ctx.beginPath();
+        ctx.moveTo(-8, -15);
+        ctx.lineTo(8, -15);
+        ctx.lineTo(12, 15);
+        ctx.lineTo(-12, 15);
+        ctx.closePath();
+        ctx.fill();
+        
+        if (stroke) {
+            ctx.strokeStyle = stroke;
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        }
+        
+        // Tech detail
+        ctx.fillStyle = 'rgba(0,0,0,0.3)';
+        ctx.fillRect(-4, -5, 8, 10);
     }
 }

@@ -73,6 +73,11 @@ export abstract class BaseEnemy extends BaseEntity {
               description = "Support unit. Repairs nearby allies. Priority target.";
               weakness = [DamageType.PIERCING]; // Snipers good for picking them off
               break;
+          case EnemyVariant.PHALANX:
+              description = "Tetra-Guardian. Cycles 'Shield Lock' mode which repairs armor. IMMUNE TO DAMAGE when locked.";
+              weakness = [DamageType.EXPLOSIVE]; // Explosives still knock back or useful when shield down
+              resistance = [DamageType.KINETIC];
+              break;
           default:
               description = "Basic infantry unit. Balanced defenses.";
       }
@@ -327,11 +332,7 @@ export abstract class BaseEnemy extends BaseEntity {
       ctx.save();
       ctx.globalAlpha = Math.max(0, this.opacity);
 
-      // 1. Draw Shadow (Projected to Ground)
-      const shadowPos = { x: pos.x, y: pos.y + this.zHeight };
-      this.drawShadow(ctx, shadowPos);
-
-      // 2. Draw Specific Enemy Graphics
+      // 1. Draw Specific Enemy Graphics
       if (this.isDying) {
           ctx.translate(pos.x, pos.y);
           ctx.scale(this.scale, this.scale);
@@ -352,7 +353,7 @@ export abstract class BaseEnemy extends BaseEntity {
 
       this.drawModel(ctx, pos);
 
-      // 3. Draw HP Bar (Only if alive)
+      // 2. Draw HP Bar (Only if alive)
       if (!this.isDying) {
           this.drawHealthBar(ctx, pos);
       }
@@ -360,8 +361,7 @@ export abstract class BaseEnemy extends BaseEntity {
       ctx.restore();
   }
 
-  abstract drawModel(ctx: CanvasRenderingContext2D, pos: Vector2): void;
-
+  // Separate shadow method called by GameEngine's shadow pass
   drawShadow(ctx: CanvasRenderingContext2D, pos: Vector2) {
     if (this.isDying && this.zHeight > 10) return; 
     
@@ -370,6 +370,8 @@ export abstract class BaseEnemy extends BaseEntity {
     ctx.ellipse(pos.x, pos.y, 12 * this.scale, 6 * this.scale, 0, 0, Math.PI * 2);
     ctx.fill();
   }
+
+  abstract drawModel(ctx: CanvasRenderingContext2D, pos: Vector2): void;
 
   drawHealthBar(ctx: CanvasRenderingContext2D, pos: Vector2) {
     if (this.health < this.maxHealth) {

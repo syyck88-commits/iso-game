@@ -148,8 +148,6 @@ export class GameEngine {
     }
 
     // Update all entities
-    // Note: We access _entities directly here to avoid getter overhead in main loop if desired, 
-    // but using this.entities is safer for consistency.
     [...this.entities].forEach(ent => ent.update(dt, this));
     
     // Update particles
@@ -169,6 +167,17 @@ export class GameEngine {
 
     const renderables = [...this.entities, ...this.particles].sort((a, b) => a.depth - b.depth);
 
+    // Pass 1: Draw Shadows (Enemies Only)
+    // This ensures shadows are always behind legs/bodies, avoiding "floating shadow on leg" artifacts
+    renderables.forEach(ent => {
+        if (ent instanceof BaseEnemy) {
+             const screenPos = this.getScreenPos(ent.gridPos.x, ent.gridPos.y);
+             // Shadows are on the ground, so we don't subtract zHeight here
+             ent.drawShadow(this.ctx, screenPos);
+        }
+    });
+
+    // Pass 2: Draw Bodies & Effects
     renderables.forEach(ent => {
       this.drawEntityWithLasers(this.ctx, ent);
     });

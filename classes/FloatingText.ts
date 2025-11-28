@@ -1,12 +1,8 @@
-import { EntityType, Vector2, GameObject } from '../types';
+import { EntityType, Vector2 } from '../types';
 import { GameEngine } from './GameEngine';
-import { generateId } from './BaseEntity';
+import { BaseEntity } from './BaseEntity';
 
-export class FloatingText implements GameObject {
-    id: string;
-    type = EntityType.FLOATING_TEXT;
-    gridPos: Vector2;
-    zHeight: number;
+export class FloatingText extends BaseEntity {
     text: string;
     color: string;
     life: number = 1.0;
@@ -14,8 +10,7 @@ export class FloatingText implements GameObject {
     isCrit: boolean = false;
 
     constructor(text: string, gridPos: Vector2, color: string, isCrit: boolean = false) {
-        this.id = generateId();
-        this.gridPos = { ...gridPos };
+        super(EntityType.FLOATING_TEXT, gridPos.x, gridPos.y);
         this.zHeight = 60; // Start high
         this.text = text;
         this.color = color;

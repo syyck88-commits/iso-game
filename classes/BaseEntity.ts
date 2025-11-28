@@ -1,3 +1,4 @@
+
 import { GameObject, EntityType, Vector2 } from '../types';
 import { GameEngine } from './GameEngine';
 
@@ -22,4 +23,7 @@ export abstract class BaseEntity implements GameObject {
 
   abstract update(dt: number, engine: GameEngine): void;
   abstract draw(ctx: CanvasRenderingContext2D, screenPos: Vector2): void;
+  
+  // New method for shadow pass (default empty)
+  drawShadow(ctx: CanvasRenderingContext2D, screenPos: Vector2): void {}
 }
