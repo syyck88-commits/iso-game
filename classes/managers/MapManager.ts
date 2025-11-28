@@ -5,7 +5,8 @@ import { Tree, Rock, Bush, Crystal } from '../Entities';
 
 export class MapManager {
   engine: GameEngine;
-  grid: number[][] = []; // 0=grass, 1=path, 2=tower, 3=rock_blocked, 4=tree_blocked, 5=water, 6=sand
+  grid: number[][] = []; // 0=grass, 1=path, 2=tower, 3=rock_blocked(legacy), 4=tree_blocked(legacy), 5=water, 6=sand
+  occupied: boolean[][] = []; // Tracks non-terrain obstacles (Decorations)
   enemyPath: Vector2[] = [];
 
   constructor(engine: GameEngine) {
@@ -15,10 +16,13 @@ export class MapManager {
 
   private initGrid() {
     this.grid = [];
+    this.occupied = [];
     for (let y = 0; y < GRID_SIZE; y++) {
       this.grid[y] = [];
+      this.occupied[y] = [];
       for (let x = 0; x < GRID_SIZE; x++) {
         this.grid[y][x] = 0;
+        this.occupied[y][x] = false;
       }
     }
   }
@@ -137,22 +141,22 @@ export class MapManager {
                 
                 // Trees: Only on Grass, higher density
                 if (tile === 0 && rnd < 0.15) {
-                    this.grid[y][x] = 4; // Blocked (Tree)
+                    this.occupied[y][x] = true;
                     this.engine.entities.push(new Tree(x, y));
                 }
                 // Rocks: Grass or Sand, medium density
                 else if (rnd < 0.20) { // 5% chance (0.15 to 0.20)
-                    this.grid[y][x] = 3; // Blocked (Rock)
+                    this.occupied[y][x] = true;
                     this.engine.entities.push(new Rock(x, y));
                 }
                 // Bushes: Grass
                 else if (tile === 0 && rnd < 0.25) { 
-                    this.grid[y][x] = 4; // Blocked
+                    this.occupied[y][x] = true;
                     this.engine.entities.push(new Bush(x, y));
                 }
                 // Crystals: Rare, mostly on grass
                 else if (rnd > 0.99) {
-                    this.grid[y][x] = 3; // Block
+                    this.occupied[y][x] = true;
                     this.engine.entities.push(new Crystal(x, y));
                 }
             }
@@ -162,6 +166,7 @@ export class MapManager {
 
   isBuildable(x: number, y: number): boolean {
       if (x < 0 || x >= GRID_SIZE || y < 0 || y >= GRID_SIZE) return false;
+      if (this.occupied[y][x]) return false; // Check occupancy
       return this.grid[y][x] === 0 || this.grid[y][x] === 6; // Buildable on Grass and Sand
   }
 
