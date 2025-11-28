@@ -1,6 +1,7 @@
 
 export * from './BaseEntity';
-export * from './Tree';
+// Export new Decorations
+export * from './environment/Decorations';
 export * from './FloatingText';
 export * from './Particle';
 export { Debris, Shell } from './Particle'; 
@@ -13,4 +14,4 @@ export { PulseTower } from './towers/PulseTower';
 export { LaserTower } from './towers/LaserTower';
 export { TowerFactory } from './TowerFactory';
 export * from './Enemy';
-export * from './enemies/BaseEnemy'; 
+export * from './enemies/BaseEnemy';

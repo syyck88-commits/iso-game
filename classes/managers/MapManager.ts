@@ -1,12 +1,11 @@
 
-
 import { GRID_SIZE, GridPoint, Vector2 } from '../../types';
 import { GameEngine } from '../GameEngine';
-import { Tree } from '../Entities';
+import { Tree, Rock, Bush, Crystal } from '../Entities';
 
 export class MapManager {
   engine: GameEngine;
-  grid: number[][] = []; // 0=grass, 1=path, 2=tower, 3=rock, 4=tree, 5=water, 6=sand
+  grid: number[][] = []; // 0=grass, 1=path, 2=tower, 3=rock_blocked, 4=tree_blocked, 5=water, 6=sand
   enemyPath: Vector2[] = [];
 
   constructor(engine: GameEngine) {
@@ -126,16 +125,36 @@ export class MapManager {
         }
     }
 
-    // Trees and Rocks (More density)
-    for(let i=0; i<50; i++) {
-        const rx = Math.floor(Math.random() * GRID_SIZE);
-        const ry = Math.floor(Math.random() * GRID_SIZE);
-        if (this.grid[ry][rx] === 0) { // Grass only
-            if (Math.random() > 0.4) {
-                this.grid[ry][rx] = 4; // Tree
-                this.engine.entities.push(new Tree(rx, ry));
-            } else {
-                this.grid[ry][rx] = 3; // Rock
+    // 3. Populate Entities
+    // Iterate all tiles to decide spawn
+    for(let y=0; y<GRID_SIZE; y++) {
+        for(let x=0; x<GRID_SIZE; x++) {
+            const tile = this.grid[y][x];
+            
+            // Only spawn on Grass (0) or Sand (6)
+            if (tile === 0 || tile === 6) {
+                const rnd = Math.random();
+                
+                // Trees: Only on Grass, higher density
+                if (tile === 0 && rnd < 0.15) {
+                    this.grid[y][x] = 4; // Blocked (Tree)
+                    this.engine.entities.push(new Tree(x, y));
+                }
+                // Rocks: Grass or Sand, medium density
+                else if (rnd < 0.20) { // 5% chance (0.15 to 0.20)
+                    this.grid[y][x] = 3; // Blocked (Rock)
+                    this.engine.entities.push(new Rock(x, y));
+                }
+                // Bushes: Grass
+                else if (tile === 0 && rnd < 0.25) { 
+                    this.grid[y][x] = 4; // Blocked
+                    this.engine.entities.push(new Bush(x, y));
+                }
+                // Crystals: Rare, mostly on grass
+                else if (rnd > 0.99) {
+                    this.grid[y][x] = 3; // Block
+                    this.engine.entities.push(new Crystal(x, y));
+                }
             }
         }
     }

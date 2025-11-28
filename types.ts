@@ -1,5 +1,4 @@
 
-
 export interface Vector2 {
   x: number;
   y: number;
@@ -14,12 +13,17 @@ export enum EntityType {
   TOWER_BASIC = 'TOWER_BASIC',
   TOWER_SNIPER = 'TOWER_SNIPER',
   TOWER_PULSE = 'TOWER_PULSE',
-  TOWER_LASER = 'TOWER_LASER', // New
+  TOWER_LASER = 'TOWER_LASER', 
   ENEMY_MINION = 'ENEMY_MINION',
   PROJECTILE = 'PROJECTILE',
   PARTICLE = 'PARTICLE',
   FLOATING_TEXT = 'FLOATING_TEXT',
-  TREE = 'TREE'
+  
+  // Environment
+  TREE = 'TREE',
+  ROCK = 'ROCK',
+  BUSH = 'BUSH',
+  CRYSTAL = 'CRYSTAL'
 }
 
 export enum EnemyVariant {
