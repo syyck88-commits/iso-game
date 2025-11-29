@@ -260,6 +260,5 @@ export class LaserTower extends BaseTower {
         ctx.restore();
 
         ctx.restore();
-        ctx.restore();
     }
 }

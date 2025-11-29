@@ -120,6 +120,10 @@ export class GameEngine {
   get tracker() { return this.audio.tracker; }
 
   update(rawDt: number) {
+    // Process Inputs (WASD Pan, etc)
+    this.input.update(rawDt);
+    this.renderer.update(rawDt);
+
     if (this.preview.active) {
         this.preview.update(rawDt);
         return;
@@ -142,7 +146,6 @@ export class GameEngine {
     const dt = rawDt * this.timeScale;
 
     this.waves.update(dt);
-    this.renderer.update();
     this.updateAudioState();
 
     this.ambientTimer++;

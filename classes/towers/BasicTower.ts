@@ -219,6 +219,5 @@ export class BasicTower extends BaseTower {
         }
 
         ctx.restore();
-        ctx.restore();
     }
 }

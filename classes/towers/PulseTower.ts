@@ -251,6 +251,5 @@ export class PulseTower extends BaseTower {
         }
 
         ctx.restore();
-        ctx.restore();
     }
 }

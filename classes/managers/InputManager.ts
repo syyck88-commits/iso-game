@@ -13,6 +13,8 @@ export class InputManager {
   selectedTowerType: EntityType | null = null;
   selectedEntityId: string | null = null;
 
+  activeKeys: Set<string> = new Set();
+
   constructor(engine: GameEngine) {
     this.engine = engine;
     this.setupListeners();
@@ -22,6 +24,50 @@ export class InputManager {
     this.engine.canvas.addEventListener('mousemove', this.handleMouseMove.bind(this));
     this.engine.canvas.addEventListener('mousedown', this.handleMouseDown.bind(this));
     this.engine.canvas.addEventListener('contextmenu', this.handleRightClick.bind(this));
+    
+    // Zoom
+    this.engine.canvas.addEventListener('wheel', this.handleWheel.bind(this), { passive: false });
+
+    // Panning Keys
+    window.addEventListener('keydown', this.handleKeyDown.bind(this));
+    window.addEventListener('keyup', this.handleKeyUp.bind(this));
+  }
+
+  handleKeyDown(e: KeyboardEvent) {
+      this.activeKeys.add(e.code);
+  }
+
+  handleKeyUp(e: KeyboardEvent) {
+      this.activeKeys.delete(e.code);
+  }
+
+  handleWheel(e: WheelEvent) {
+      e.preventDefault();
+      // Zoom direction
+      const delta = Math.sign(e.deltaY) * -0.1;
+      const newZoom = Math.min(2.5, Math.max(0.5, this.engine.renderer.targetZoom + delta));
+      this.engine.renderer.targetZoom = newZoom;
+  }
+
+  update(dt: number) {
+      // WASD Panning
+      const panSpeed = 15 / this.engine.renderer.zoom; // Move faster when zoomed out
+      
+      let dx = 0;
+      let dy = 0;
+
+      if (this.activeKeys.has('KeyW') || this.activeKeys.has('ArrowUp')) dy += panSpeed;
+      if (this.activeKeys.has('KeyS') || this.activeKeys.has('ArrowDown')) dy -= panSpeed;
+      if (this.activeKeys.has('KeyA') || this.activeKeys.has('ArrowLeft')) dx += panSpeed;
+      if (this.activeKeys.has('KeyD') || this.activeKeys.has('ArrowRight')) dx -= panSpeed;
+
+      if (dx !== 0 || dy !== 0) {
+          this.engine.renderer.pan.x += dx;
+          this.engine.renderer.pan.y += dy;
+          
+          // Force mouse update to refresh hover tile while camera moves
+          this.updateHoverTile();
+      }
   }
 
   handleMouseMove(e: MouseEvent) {
@@ -30,11 +76,17 @@ export class InputManager {
       x: e.clientX - rect.left,
       y: e.clientY - rect.top
     };
+    this.updateHoverTile();
+  }
+
+  updateHoverTile() {
+    // Convert Raw Screen Coordinates -> World Coordinates (taking zoom/pan into account)
+    const worldPos = this.engine.renderer.screenToWorld(this.mouseScreenPos.x, this.mouseScreenPos.y);
 
     const gridP = toGrid(
-        this.mouseScreenPos.x, 
-        this.mouseScreenPos.y, 
-        this.engine.renderer.offsetX, 
+        worldPos.x, 
+        worldPos.y, 
+        this.engine.renderer.offsetX, // Pass base offset 
         this.engine.renderer.offsetY
     );
     
@@ -119,6 +171,9 @@ export class InputManager {
   }
 
   getHitEntity(sx: number, sy: number) {
+     // Transform screen click to world click for intersection
+     const worldPos = this.engine.renderer.screenToWorld(sx, sy);
+
      // Check hit against entities (front-to-back sort for checking)
      // Filter out non-selectable things
      const checkList = this.engine.entities.filter(e => 
@@ -141,8 +196,8 @@ export class InputManager {
          // Larger hitbox for flying/bosses
          if (ent.zHeight > 10) radius = 40;
 
-         const dx = sx - pos.x;
-         const dy = sy - visualY;
+         const dx = worldPos.x - pos.x;
+         const dy = worldPos.y - visualY;
          
          if (dx*dx + dy*dy < radius*radius) {
              return ent;
