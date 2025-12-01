@@ -43,8 +43,6 @@ export class GameEngine {
   private _particles: ParticleEffect[] = [];
   
   // Context-Aware Accessors
-  // These redirect to the PreviewSystem when it is active, ensuring that
-  // all entity logic (spawning particles, finding targets) works within the preview context automatically.
   get entities(): BaseEntity[] {
       if (this.preview && this.preview.active) return this.preview.entities;
       return this._entities;
@@ -175,7 +173,6 @@ export class GameEngine {
     const renderables = [...this.entities, ...this.particles].sort((a, b) => a.depth - b.depth);
 
     // Pass 1: Draw Shadows (Enemies Only)
-    // This ensures shadows are always behind legs/bodies, avoiding "floating shadow on leg" artifacts
     renderables.forEach(ent => {
         if (ent instanceof BaseEnemy) {
              const screenPos = this.getScreenPos(ent.gridPos.x, ent.gridPos.y);
@@ -192,7 +189,6 @@ export class GameEngine {
     this.renderer.postDraw(); 
   }
 
-  // Shared rendering logic for Main Game and Preview System
   drawEntityWithLasers(ctx: CanvasRenderingContext2D, ent: BaseEntity | ParticleEffect) {
       let screenPos: Vector2;
       if (ent.type === EntityType.PARTICLE) {
@@ -288,7 +284,15 @@ export class GameEngine {
   }
 
   startWave() { this.actions.startWave(); }
-  spawnEnemy(variant: EnemyVariant) { this.entities.push(EnemyFactory.create(variant, this.map.enemyPath, this.gameState.wave)); }
+  
+  spawnEnemy(variant: EnemyVariant) { 
+      // Use smooth spline path for flying enemies
+      const isFlying = variant === EnemyVariant.FAST || variant === EnemyVariant.GHOST || variant === EnemyVariant.SWARM || variant === EnemyVariant.BOSS_MK2 || variant === EnemyVariant.BOSS_MK3;
+      const path = isFlying ? this.map.flyPath : this.map.enemyPath;
+      
+      this.entities.push(EnemyFactory.create(variant, path, this.gameState.wave)); 
+  }
+  
   buildTower(gridPos: GridPoint, type: EntityType) { this.actions.buildTower(gridPos, type); }
   upgradeSelectedTower() { this.actions.upgradeSelectedTower(); }
   sellSelectedTower() { this.actions.sellSelectedTower(); }

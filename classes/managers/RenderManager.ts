@@ -69,7 +69,6 @@ export class RenderManager {
     this.offscreenCtx.clearRect(0, 0, this.width, this.height);
     this.drawTerrain(this.offscreenCtx);
     this.drawRoads(this.offscreenCtx);
-    this.drawGridOverlay(this.offscreenCtx);
   }
 
   shake(intensity: number) {
@@ -147,6 +146,11 @@ export class RenderManager {
         ctx.drawImage(this.offscreenCanvas, 0, 0);
     }
     
+    // Draw grid only if building (Build Mode active)
+    if (this.engine.input.selectedTowerType) {
+        this.drawGridOverlay(ctx);
+    }
+    
     this.drawEnemyPathMarkers(ctx);
     this.drawRangeIndicators(ctx);
   }
@@ -156,14 +160,6 @@ export class RenderManager {
      const hover = this.engine.input.hoverTile;
      const selectedType = this.engine.input.selectedTowerType;
 
-     // We are still inside the Global Context from GameEngine.draw() which calls this?
-     // No, GameEngine.draw() calls render.draw() then draws entities then render.postDraw()
-     // But GameEngine wraps entities in a loop. We need to handle the transform stack there or here.
-     // Currently GameEngine.draw() structure: 
-     // 1. renderer.draw() (Applies transform but... wait, it calls restore at end of drawBackground?)
-     // Actually renderer.draw() has a ctx.save() but NO restore(). 
-     // The restore() must happen at the very end of the frame in GameEngine or PostDraw.
-     
      if (hover && selectedType) {
         const { gx, gy } = hover;
         const screenPos = toScreen(gx, gy, this.offsetX, this.offsetY);
@@ -262,7 +258,6 @@ export class RenderManager {
   }
 
   private drawBackground(ctx: CanvasRenderingContext2D) {
-    // Background is static (Screen space), so we draw it BEFORE the camera transform
     const grad = ctx.createRadialGradient(this.width/2, this.height/2, 0, this.width/2, this.height/2, this.width);
     grad.addColorStop(0, '#0f172a'); 
     grad.addColorStop(1, '#020617'); 
@@ -273,8 +268,11 @@ export class RenderManager {
   private drawTerrain(ctx: CanvasRenderingContext2D) {
     for (let y = 0; y < GRID_SIZE; y++) {
       for (let x = 0; x < GRID_SIZE; x++) {
-        const tileType = this.engine.map.getTile(x, y);
-        if (tileType === 1) continue; 
+        let tileType = this.engine.map.getTile(x, y);
+        
+        // If it's a road (1), force draw as grass (0) for base layer
+        // This ensures no black gaps under roads
+        if (tileType === 1) tileType = 0;
 
         const pos = toScreen(x, y, this.offsetX, this.offsetY);
         this.drawBaseTile(ctx, x, y, pos, tileType);
@@ -327,11 +325,6 @@ export class RenderManager {
     ctx.lineTo(pos.x - TILE_WIDTH / 2, pos.y + TILE_HEIGHT / 2);
     ctx.closePath();
     ctx.fill();
-
-    if (tileType === 5 && noise > 0.1) {
-        ctx.fillStyle = 'rgba(255,255,255,0.1)';
-        ctx.beginPath(); ctx.ellipse(pos.x, pos.y + 12, 6, 3, 0, 0, Math.PI*2); ctx.fill();
-    }
   }
 
   private darkenColor(hsl: string, factor: number): string {
