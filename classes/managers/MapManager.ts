@@ -5,7 +5,8 @@ import { Tree, Rock, Bush, Crystal } from '../Entities';
 
 export class MapManager {
   engine: GameEngine;
-  grid: number[][] = []; // 0=grass, 1=path, 2=tower, 3=rock_blocked, 4=tree_blocked, 5=water, 6=sand
+  grid: number[][] = []; // Logical Grid: 0=grass, 1=path, 2=tower, 3=rock_blocked, 4=tree_blocked, 5=water, 6=sand
+  baseGrid: number[][] = []; // Visual Biome Grid: 0=grass, 5=water, 6=sand
   occupied: boolean[][] = []; // Tracks non-terrain obstacles (Decorations)
   enemyPath: Vector2[] = [];
   flyPath: Vector2[] = []; // Smoothed path for flying units
@@ -17,12 +18,15 @@ export class MapManager {
 
   private initGrid() {
     this.grid = [];
+    this.baseGrid = [];
     this.occupied = [];
     for (let y = 0; y < GRID_SIZE; y++) {
       this.grid[y] = [];
+      this.baseGrid[y] = [];
       this.occupied[y] = [];
       for (let x = 0; x < GRID_SIZE; x++) {
         this.grid[y][x] = 0;
+        this.baseGrid[y][x] = 0; // Default Grass
         this.occupied[y][x] = false;
       }
     }
@@ -198,18 +202,31 @@ export class MapManager {
       return true;
   }
 
-  // Uses Chaikin's Algorithm or subdivision to create a smooth curve from the grid path
+  // Uses Chaikin's Algorithm + Sparsification to cut corners heavily
   private generateSmoothPath() {
       if (this.enemyPath.length < 2) {
           this.flyPath = [...this.enemyPath];
           return;
       }
 
-      // Convert grid coords to floats for smoothing
-      let points = this.enemyPath.map(p => ({x: p.x, y: p.y}));
+      // 1. Sparsify the path: Take Start, then every Nth point, then End.
+      // This forces the spline to ignore small zig-zags and "cut" across the map.
+      const sparsePoints: Vector2[] = [];
+      const stride = 4; // Check every 4th tile
+      
+      sparsePoints.push(this.enemyPath[0]);
+      
+      for(let i = 1; i < this.enemyPath.length - 1; i++) {
+          if (i % stride === 0) {
+              sparsePoints.push(this.enemyPath[i]);
+          }
+      }
+      
+      sparsePoints.push(this.enemyPath[this.enemyPath.length - 1]);
 
-      // Iterations of smoothing (Corner cutting)
-      const iterations = 3;
+      // 2. Apply Chaikin's Corner Cutting
+      let points = sparsePoints.map(p => ({x: p.x, y: p.y}));
+      const iterations = 4; // More iterations = smoother curve
       
       for(let k=0; k<iterations; k++) {
           const newPoints: Vector2[] = [];
@@ -220,7 +237,7 @@ export class MapManager {
               const p0 = points[i];
               const p1 = points[i+1];
 
-              // Cut corners at 25% and 75%
+              // Cut heavily at 25% / 75%
               const q = { x: 0.75 * p0.x + 0.25 * p1.x, y: 0.75 * p0.y + 0.25 * p1.y };
               const r = { x: 0.25 * p0.x + 0.75 * p1.x, y: 0.25 * p0.y + 0.75 * p1.y };
 
@@ -248,8 +265,12 @@ export class MapManager {
                 const dx = x - cx;
                 const dy = y - cy;
                 if (dx*dx + dy*dy < r*r) {
+                    // Update VISUAL biome unconditionally
+                    this.baseGrid[y][x] = 5; // Water
+                    
+                    // Update LOGICAL grid only if it's grass (don't break roads)
                     if (this.grid[y][x] === 0) {
-                        this.grid[y][x] = 5; // Water
+                        this.grid[y][x] = 5; 
                     }
                 }
             }
@@ -257,18 +278,25 @@ export class MapManager {
     }
 
     // 2. Sand Borders (Around water)
-    const tempGrid = this.grid.map(row => [...row]);
+    const tempBaseGrid = this.baseGrid.map(row => [...row]);
     for(let y=0; y<GRID_SIZE; y++) {
         for(let x=0; x<GRID_SIZE; x++) {
-            if (this.grid[y][x] === 5) {
+            if (this.baseGrid[y][x] === 5) {
                 // Check neighbors
                 for(let dy=-1; dy<=1; dy++) {
                     for(let dx=-1; dx<=1; dx++) {
                         const nx = x + dx; 
                         const ny = y + dy;
                         if (nx>=0 && nx<GRID_SIZE && ny>=0 && ny<GRID_SIZE) {
-                            if (tempGrid[ny][nx] === 0) {
-                                this.grid[ny][nx] = 6; // Sand
+                            // If neighbor is NOT water in our temp snapshot
+                            if (tempBaseGrid[ny][nx] !== 5) {
+                                // Set VISUAL sand
+                                this.baseGrid[ny][nx] = 6;
+                                
+                                // Set LOGICAL sand if valid
+                                if (this.grid[ny][nx] === 0) {
+                                    this.grid[ny][nx] = 6;
+                                }
                             }
                         }
                     }
@@ -283,7 +311,7 @@ export class MapManager {
         for(let x=0; x<GRID_SIZE; x++) {
             const tile = this.grid[y][x];
             
-            // Only spawn on Grass (0) or Sand (6)
+            // Only spawn on Empty Grass (0) or Sand (6)
             if (tile === 0 || tile === 6) {
                 const rnd = Math.random();
                 
@@ -315,7 +343,8 @@ export class MapManager {
   isBuildable(x: number, y: number): boolean {
       if (x < 0 || x >= GRID_SIZE || y < 0 || y >= GRID_SIZE) return false;
       if (this.occupied[y][x]) return false; // Check occupancy
-      return this.grid[y][x] === 0 || this.grid[y][x] === 6; // Buildable on Grass and Sand
+      // Buildable on Grass(0) and Sand(6)
+      return this.grid[y][x] === 0 || this.grid[y][x] === 6; 
   }
 
   setTile(x: number, y: number, type: number) {

@@ -268,12 +268,9 @@ export class RenderManager {
   private drawTerrain(ctx: CanvasRenderingContext2D) {
     for (let y = 0; y < GRID_SIZE; y++) {
       for (let x = 0; x < GRID_SIZE; x++) {
-        let tileType = this.engine.map.getTile(x, y);
+        // Use baseGrid for the visual floor type, so roads (1 in `grid`) don't overwrite the underlying biome
+        let tileType = this.engine.map.baseGrid[y][x]; 
         
-        // If it's a road (1), force draw as grass (0) for base layer
-        // This ensures no black gaps under roads
-        if (tileType === 1) tileType = 0;
-
         const pos = toScreen(x, y, this.offsetX, this.offsetY);
         this.drawBaseTile(ctx, x, y, pos, tileType);
       }
@@ -292,7 +289,7 @@ export class RenderManager {
     } else if (tileType === 6) { // Sand
         color = '#d97706'; 
         depth = 4;
-    } else { // Grass
+    } else { // Grass (0 or anything else)
         const hue = 150 + (noise * 10); 
         const lit = 35 + (noise * 10);
         color = `hsl(${hue}, 50%, ${lit}%)`;
