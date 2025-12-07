@@ -19,6 +19,7 @@ interface TopBarProps {
     health: number;
     wave: number;
     nextWaveType?: string;
+    nextWaveCount?: number;
     debugMode: boolean;
     isPaused: boolean;
     timeScale: number;
@@ -35,7 +36,7 @@ interface TopBarProps {
 }
 
 export const TopBar: React.FC<TopBarProps> = ({
-    money, health, wave, nextWaveType, debugMode, isPaused, timeScale,
+    money, health, wave, nextWaveType, nextWaveCount, debugMode, isPaused, timeScale,
     musicVol, sfxVol,
     onRestart, onPause, onTimeScale, onDebugToggle, onAnimDebug, onMusicDebug, onMusicVolChange, onSfxVolChange
 }) => {
@@ -100,9 +101,14 @@ export const TopBar: React.FC<TopBarProps> = ({
                     {nextWaveType && (
                         <div className="border-l border-slate-700 pl-3 flex flex-col">
                             <span className="text-[10px] text-slate-500 uppercase">Incoming</span>
-                            <span className={`text-xs font-bold uppercase ${nextWaveType.includes('BOSS') ? 'text-rose-500 animate-pulse' : 'text-slate-300'}`}>
-                                {nextWaveType.replace('BOSS_', '⚠️ CLASS ')}
-                            </span>
+                            <div className="flex items-center gap-1">
+                                <span className="text-xs text-slate-400 font-bold">
+                                    {nextWaveCount}x
+                                </span>
+                                <span className={`text-xs font-bold uppercase ${nextWaveType.includes('BOSS') ? 'text-rose-500 animate-pulse' : 'text-slate-300'}`}>
+                                    {nextWaveType.replace('BOSS_', 'CLASS ')}
+                                </span>
+                            </div>
                         </div>
                     )}
                 </div>

@@ -1,5 +1,5 @@
 
-import { EntityType, Vector2, ParticleBehavior, DamageType } from '../../types';
+import { EntityType, Vector2, ParticleBehavior, DamageType, TargetingMode } from '../../types';
 import { BaseTower } from './BaseTower';
 import { GameEngine } from '../GameEngine';
 import { BaseEnemy } from '../enemies/BaseEnemy';
@@ -26,6 +26,7 @@ export class LaserTower extends BaseTower {
         this.damage = 1.0; 
         this.totalSpent = 120;
         this.turnSpeed = 10.0; // Fast tracking
+        this.targetingMode = TargetingMode.STRONGEST;
     }
 
     getUpgradeCost(): number {
@@ -47,7 +48,6 @@ export class LaserTower extends BaseTower {
         const tick = dt / 16.0;
 
         let target: BaseEnemy | null = null;
-        const enemies = engine.enemies;
         
         // Spin animation
         const spinSpeed = 0.05 + (this.laserCharge * 0.2);
@@ -84,7 +84,7 @@ export class LaserTower extends BaseTower {
             if (this.debugTarget.health <= 0) this.debugTarget = null;
         }
 
-        // Verify existing target
+        // Verify existing target validity
         if (!target && this.targetId) {
             // Check cached target first to avoid array search if possible
             if (this.focusedTarget && this.focusedTarget.id === this.targetId && this.focusedTarget.health > 0 && !this.focusedTarget.isDying) {
@@ -96,7 +96,7 @@ export class LaserTower extends BaseTower {
             
             // Fallback to array search if cache miss or invalid
             if (!target) {
-                const existing = enemies.find(e => e.id === this.targetId);
+                const existing = engine.enemies.find(e => e.id === this.targetId);
                 if (existing && existing.health > 0 && !existing.isDying) {
                     const dist = this.getDist(existing.gridPos);
                     if (dist <= this.range) {
@@ -106,19 +106,17 @@ export class LaserTower extends BaseTower {
             }
         }
 
-        // Find new target if lost
+        // If target is valid but mode dictates we should switch...
+        // Laser towers usually "stick" to a target until it dies or leaves range to maintain charge.
+        // However, if we want to respect priority strictly, we should re-evaluate periodically.
+        // For performance and mechanics (charge-up), stickiness is better.
+        // We only search for NEW target if we lost current one.
+        
         if (!target) {
             this.laserCharge = Math.max(0, this.laserCharge - dt * 0.005); // Decay
-            let minDist = Infinity;
-            for (const e of enemies) {
-                if (e.health <= 0 || e.isDying) continue;
-
-                const dist = this.getDist(e.gridPos);
-                if (dist <= this.range && dist < minDist) {
-                    minDist = dist;
-                    target = e;
-                }
-            }
+            
+            // Find best target using shared logic
+            target = this.getBestTarget(engine.enemies);
         }
 
         if (target) {

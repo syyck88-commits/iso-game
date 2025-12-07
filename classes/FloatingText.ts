@@ -1,3 +1,4 @@
+
 import { EntityType, Vector2 } from '../types';
 import { GameEngine } from './GameEngine';
 import { BaseEntity } from './BaseEntity';
@@ -7,6 +8,8 @@ export class FloatingText extends BaseEntity {
     color: string;
     life: number = 1.0;
     offsetY: number = 0;
+    offsetX: number = 0;
+    velX: number;
     isCrit: boolean = false;
 
     constructor(text: string, gridPos: Vector2, color: string, isCrit: boolean = false) {
@@ -15,6 +18,8 @@ export class FloatingText extends BaseEntity {
         this.text = text;
         this.color = color;
         this.isCrit = isCrit;
+        // Random spread
+        this.velX = (Math.random() - 0.5) * 1.5; 
     }
 
     get depth() { return 99999; } // UI layer
@@ -22,6 +27,8 @@ export class FloatingText extends BaseEntity {
     update(dt: number, engine: GameEngine) {
         this.life -= dt * 0.001; // Fix: scale to seconds
         this.offsetY -= this.isCrit ? 0.8 : 0.5; // Float up
+        this.offsetX += this.velX;
+        
         if (this.life <= 0) engine.removeEntity(this.id);
     }
 
@@ -43,7 +50,7 @@ export class FloatingText extends BaseEntity {
         ctx.shadowColor = this.color;
         ctx.shadowBlur = this.isCrit ? 10 : 0;
         
-        ctx.translate(screenPos.x, screenPos.y + this.offsetY - this.zHeight);
+        ctx.translate(screenPos.x + this.offsetX, screenPos.y + this.offsetY - this.zHeight);
         ctx.scale(scale, scale);
         
         // Stroke for readability

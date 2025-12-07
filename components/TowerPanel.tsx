@@ -1,7 +1,7 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Tower } from '../classes/Entities';
-import { EntityType } from '../types';
+import { EntityType, TargetingMode } from '../types';
 
 interface TowerPanelProps {
     tower: Tower;
@@ -27,7 +27,9 @@ const StatBar: React.FC<{ label: string; value: number; max: number; colorClass:
 };
 
 export const TowerPanel: React.FC<TowerPanelProps> = ({ tower, money, debugMode, onUpgrade, onSell }) => {
-    
+    // Force re-render on mode switch
+    const [, setTick] = useState(0);
+
     // Normalize stats for display bars based on tower type maximums
     // These max values are arbitrary "visual maximums" for the bars
     const getStats = () => {
@@ -42,6 +44,14 @@ export const TowerPanel: React.FC<TowerPanelProps> = ({ tower, money, debugMode,
     };
     
     const stats = getStats();
+
+    const cycleTargeting = () => {
+        const modes = Object.values(TargetingMode);
+        const currentIdx = modes.indexOf(tower.targetingMode);
+        const nextIdx = (currentIdx + 1) % modes.length;
+        tower.targetingMode = modes[nextIdx];
+        setTick(prev => prev + 1);
+    };
 
     return (
         <div className="absolute right-4 top-1/2 -translate-y-1/2 bg-slate-900/95 backdrop-blur border border-slate-700 p-6 rounded-xl shadow-2xl w-72 text-white animate-fade-in pointer-events-auto transition-all z-20">
@@ -61,7 +71,7 @@ export const TowerPanel: React.FC<TowerPanelProps> = ({ tower, money, debugMode,
                 </div>
             </div>
             
-            <div className="space-y-4 mb-6 bg-black/20 p-4 rounded-lg border border-white/5">
+            <div className="space-y-4 mb-4 bg-black/20 p-4 rounded-lg border border-white/5">
                 <StatBar label="Damage Output" value={stats.dmg} max={200} colorClass="bg-rose-500" />
                 <StatBar label="Fire Rate" value={stats.speed} max={5} colorClass="bg-blue-400" />
                 <StatBar label="Range" value={stats.range} max={10} colorClass="bg-emerald-400" />
@@ -70,6 +80,18 @@ export const TowerPanel: React.FC<TowerPanelProps> = ({ tower, money, debugMode,
                     <span className="text-xs text-slate-500 uppercase">Eliminations</span>
                     <span className="font-mono text-yellow-400 font-bold text-lg">{tower.killCount}</span>
                 </div>
+            </div>
+
+            {/* Targeting Toggle */}
+            <div className="mb-4">
+                <div className="text-xs text-slate-500 uppercase mb-1 font-bold">Targeting Priority</div>
+                <button 
+                    onClick={cycleTargeting}
+                    className="w-full bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded px-3 py-2 flex justify-between items-center transition-colors"
+                >
+                    <span className="text-sm font-bold text-emerald-400">{tower.targetingMode}</span>
+                    <span className="text-xs text-slate-400">↻</span>
+                </button>
             </div>
 
             <div className="grid grid-cols-2 gap-3">

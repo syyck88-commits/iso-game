@@ -26,6 +26,7 @@ export abstract class BaseEnemy extends BaseEntity {
   // Status Effects
   slowTimer: number = 0;
   slowFactor: number = 0.5;
+  isWet: boolean = false; // Status from Water Tiles
 
   constructor(path: Vector2[], wave: number, variant: EnemyVariant) {
     super(EntityType.ENEMY_MINION, path[0].x, path[0].y);
@@ -99,6 +100,12 @@ export abstract class BaseEnemy extends BaseEntity {
 
       let multiplier = 1.0;
       let textLabel = '';
+
+      // --- WET SYNERGY ---
+      if (this.isWet && (type === DamageType.ENERGY || type === DamageType.EXPLOSIVE)) {
+          multiplier *= 1.5;
+          textLabel = 'WET CRIT';
+      }
 
       switch (this.variant) {
           case EnemyVariant.GHOST:
@@ -190,7 +197,7 @@ export abstract class BaseEnemy extends BaseEntity {
           showText = true; // Always show resistance info
       } else if (multiplier >= 1.5) {
           // WEAKNESS
-          textColor = isCrit ? '#facc15' : '#f87171'; // Yellow or Red
+          textColor = isCrit || textLabel === 'WET CRIT' ? '#facc15' : '#f87171'; // Yellow or Red
           displayText = textLabel ? `${textLabel} ${Math.floor(finalDamage)}` : `${Math.floor(finalDamage)}!`;
           showText = true;
       } else {
@@ -220,6 +227,19 @@ export abstract class BaseEnemy extends BaseEntity {
   update(dt: number, engine: GameEngine) {
     // Tick scaling: normalize to 60fps (16ms)
     const tick = dt / 16.0;
+
+    // Check Wet Status (Tile Type 5 = Water)
+    const tx = Math.floor(this.gridPos.x);
+    const ty = Math.floor(this.gridPos.y);
+    if (tx >= 0 && ty >= 0 && tx < 30 && ty < 30 && engine.map.baseGrid[ty][tx] === 5) {
+        this.isWet = true;
+        // Occasional drip particle
+        if (Math.random() > 0.95) {
+             engine.spawnParticle(this.gridPos, this.zHeight, '#60a5fa');
+        }
+    } else {
+        this.isWet = false;
+    }
 
     // 1. Death Sequence Logic
     if (this.health <= 0 && !this.isDying) {
@@ -347,6 +367,16 @@ export abstract class BaseEnemy extends BaseEntity {
           ctx.fillStyle = 'rgba(168, 85, 247, 0.3)';
           ctx.beginPath();
           ctx.ellipse(pos.x, pos.y, 12, 6, 0, 0, Math.PI*2);
+          ctx.fill();
+          ctx.restore();
+      }
+      
+      // Visual indicator for WET
+      if (!this.isDying && this.isWet) {
+          ctx.save();
+          ctx.fillStyle = 'rgba(59, 130, 246, 0.4)';
+          ctx.beginPath();
+          ctx.ellipse(pos.x, pos.y, 14, 7, 0, 0, Math.PI*2);
           ctx.fill();
           ctx.restore();
       }

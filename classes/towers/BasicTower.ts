@@ -1,5 +1,5 @@
 
-import { EntityType, Vector2, ParticleBehavior, DamageType } from '../../types';
+import { EntityType, Vector2, ParticleBehavior, DamageType, TargetingMode } from '../../types';
 import { BaseTower } from './BaseTower';
 import { GameEngine } from '../GameEngine';
 import { BaseEnemy } from '../enemies/BaseEnemy';
@@ -17,6 +17,7 @@ export class BasicTower extends BaseTower {
         this.damage = 5;
         this.totalSpent = 30;
         this.turnSpeed = 8.0; // Fast rotation
+        this.targetingMode = TargetingMode.CLOSEST; // Default
     }
 
     getUpgradeCost(): number {
@@ -53,22 +54,8 @@ export class BasicTower extends BaseTower {
         this.barrelAngle += this.spinSpeed * tick;
         this.spinSpeed *= Math.pow(0.95, tick); // Friction
 
-        const enemies = engine.enemies;
-        let bestTarget: BaseEnemy | null = null;
-        let minDist = Infinity;
-
-        // 1. Find Target (Skip dying)
-        for (const e of enemies) {
-            if (e.health <= 0 || e.isDying) continue; // Skip Dead
-
-            const dist = this.getDist(e.gridPos);
-            if (dist <= this.range) {
-                if (dist < minDist) {
-                    minDist = dist;
-                    bestTarget = e;
-                }
-            }
-        }
+        // Use unified targeting logic
+        const bestTarget = this.getBestTarget(engine.enemies);
 
         if (bestTarget) {
             this.targetId = bestTarget.id;
@@ -90,7 +77,11 @@ export class BasicTower extends BaseTower {
             // Fire (Only if aimed and cooldown ready)
             if (this.cooldown <= 0 && this.spinSpeed > 0.6 && isAimed) {
                 engine.spawnProjectile(this, bestTarget);
+                
+                // Panning handled in engine wrapper or audio core, but calculate here if needed
+                // For now, simple trigger
                 engine.audio.playShoot(1.2);
+                
                 this.recoil = 5;
                 this.cooldown = this.maxCooldown;
 

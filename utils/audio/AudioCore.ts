@@ -1,5 +1,4 @@
 
-
 export class AudioCore {
   ctx: AudioContext | null = null;
   masterGain: GainNode | null = null;
@@ -178,14 +177,15 @@ export class AudioCore {
       }
   }
 
-  // Unified player with Bus Routing
+  // Unified player with Bus Routing and optional Panning
   playBuffer(
       buffer: AudioBuffer, 
       time: number, 
       type: 'SFX' | 'MUSIC',
       playbackRate: number = 1.0, 
       volume: number = 1.0, 
-      sendReverb = false
+      sendReverb = false,
+      pan: number = 0 // -1 to 1
   ) {
       if (!this.ctx || !this.musicBus || !this.sfxBus) return;
 
@@ -193,23 +193,35 @@ export class AudioCore {
       source.buffer = buffer;
       source.playbackRate.value = playbackRate;
 
+      // Gain Envelope
       const gain = this.ctx.createGain();
       gain.gain.value = volume;
 
       source.connect(gain);
       
+      // Stereo Panning (if supported)
+      let outputNode: AudioNode = gain;
+      if (this.ctx.createStereoPanner && pan !== 0) {
+          const panner = this.ctx.createStereoPanner();
+          panner.pan.value = Math.max(-1, Math.min(1, pan));
+          gain.connect(panner);
+          outputNode = panner;
+      }
+
       // Route to correct bus
       if (type === 'SFX') {
-          gain.connect(this.sfxBus);
+          outputNode.connect(this.sfxBus);
       } else {
-          gain.connect(this.musicBus);
+          outputNode.connect(this.musicBus);
       }
       
       // FX Sends (Only applied to music usually, or specific SFX)
+      // Note: Sends are usually pre-pan or center-panned for reverb consistency, 
+      // but simple post-gain send is fine here.
       if (sendReverb && this.reverbNode && type === 'MUSIC') {
           const send = this.ctx.createGain();
           send.gain.value = 0.4;
-          gain.connect(send);
+          gain.connect(send); // Connect from Gain (pre-pan) or outputNode (post-pan)? Pre-pan is better for simple verbs.
           send.connect(this.reverbNode);
       }
 

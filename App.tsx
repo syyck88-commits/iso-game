@@ -116,6 +116,7 @@ const App: React.FC = () => {
   const [isPaused, setIsPaused] = useState(false);
   const [debugMode, setDebugMode] = useState(false);
   const [nextWaveType, setNextWaveType] = useState<string>('NORMAL');
+  const [nextWaveCount, setNextWaveCount] = useState<number>(0);
   
   // View Mode
   const [viewMode, setViewMode] = useState<'GAME' | 'ANIM_DEBUG' | 'MUSIC_DEBUG'>('GAME');
@@ -155,7 +156,12 @@ const App: React.FC = () => {
             setMoney(eng.gameState.money);
             setHealth(eng.gameState.health);
             setWave(eng.gameState.wave);
-            setNextWaveType(eng.nextWaveType);
+            
+            // Get preview info
+            const wavePrev = eng.waves.getNextWavePreview(eng.gameState.wave);
+            setNextWaveType(wavePrev.type);
+            setNextWaveCount(wavePrev.count);
+            
             setIsGameOver(!eng.gameState.gameActive);
             
             // Sync Selection logic
@@ -471,6 +477,7 @@ const App: React.FC = () => {
                 health={health}
                 wave={wave}
                 nextWaveType={nextWaveType}
+                nextWaveCount={nextWaveCount}
                 debugMode={debugMode}
                 isPaused={isPaused}
                 timeScale={timeScale}
@@ -488,7 +495,7 @@ const App: React.FC = () => {
 
             {selectedTower && (
                 <TowerPanel 
-                    key={`${selectedTower.id}_${selectedTower.level}`} 
+                    key={`${selectedTower.id}_${selectedTower.level}_${selectedTower.targetingMode}`} 
                     tower={selectedTower}
                     money={money}
                     debugMode={debugMode}

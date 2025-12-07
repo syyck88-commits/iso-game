@@ -1,5 +1,5 @@
 
-import { EntityType, Vector2, ParticleBehavior, DamageType } from '../../types';
+import { EntityType, Vector2, ParticleBehavior, DamageType, TargetingMode } from '../../types';
 import { BaseTower } from './BaseTower';
 import { GameEngine } from '../GameEngine';
 import { BaseEnemy } from '../enemies/BaseEnemy';
@@ -18,6 +18,7 @@ export class SniperTower extends BaseTower {
         this.damage = 35;
         this.totalSpent = 50;
         this.turnSpeed = 2.5; // Very slow rotation (Balance)
+        this.targetingMode = TargetingMode.STRONGEST; // Default for Sniper
     }
 
     getUpgradeCost(): number {
@@ -83,19 +84,8 @@ export class SniperTower extends BaseTower {
             }
         }
 
-        const enemies = engine.enemies;
-        let bestTarget: BaseEnemy | null = null;
-        
-        // Sniper Logic: Prioritize High HP
-        for (const e of enemies) {
-            if (e.health <= 0 || e.isDying) continue; // Skip Dead
-
-            if (this.getDist(e.gridPos) <= this.range) {
-                if (!bestTarget || e.health > bestTarget.health) {
-                    bestTarget = e;
-                }
-            }
-        }
+        // Unified Targeting
+        const bestTarget = this.getBestTarget(engine.enemies);
 
         if (bestTarget) {
             this.targetId = bestTarget.id;

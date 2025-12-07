@@ -33,6 +33,13 @@ export enum DamageType {
   ENERGY = 'ENERGY'        // Beam (Laser)
 }
 
+export enum TargetingMode {
+  CLOSEST = 'CLOSEST',
+  FIRST = 'FIRST',
+  STRONGEST = 'STRONGEST',
+  WEAKEST = 'WEAKEST'
+}
+
 export enum EnemyVariant {
   NORMAL = 'NORMAL',
   FAST = 'FAST',

@@ -140,17 +140,19 @@ export class WaveManager {
     return { composition: queue, delay };
   }
 
-  getNextWavePreview(currentWave: number): EnemyVariant | 'BOSS' {
+  getNextWavePreview(currentWave: number): { type: string, count: number } {
       const nextWave = currentWave + 1;
       const info = this.getWaveInfo(nextWave);
-      if (info.composition.length === 0) return EnemyVariant.NORMAL;
+      if (info.composition.length === 0) return { type: EnemyVariant.NORMAL, count: 0 };
+      
+      const count = info.composition.length;
       
       // Check for boss
       const boss = info.composition.find(e => e.startsWith('BOSS'));
-      if (boss) return 'BOSS';
+      if (boss) return { type: 'BOSS', count: 1 };
 
       // Return majority type or first type
-      return info.composition[0];
+      return { type: info.composition[0], count };
   }
 
   startWave(currentWave: number) {

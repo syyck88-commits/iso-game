@@ -105,7 +105,7 @@ export class GameEngine {
   }
 
   get nextWaveType(): string {
-      return this.waves.getNextWavePreview(this.gameState.wave);
+      return this.waves.getNextWavePreview(this.gameState.wave).type;
   }
 
   // --- PREVIEW API DELEGATION ---
@@ -215,9 +215,26 @@ export class GameEngine {
                 const pulse = Math.sin(Date.now() / 50) * 0.2 + 0.8;
                 const chargeWidth = ent.laserBeamWidth || 1;
                 
+                // Draw Jittery Core Beam
                 ctx.strokeStyle = '#fff';
                 ctx.lineWidth = Math.min(3, chargeWidth);
-                ctx.beginPath(); ctx.moveTo(startX, startY); ctx.lineTo(targetPos.x, targetPos.y); ctx.stroke();
+                ctx.beginPath(); 
+                ctx.moveTo(startX, startY); 
+                
+                // Break beam into segments for jitter
+                const distTotal = Math.sqrt((targetPos.x - startX)**2 + (targetPos.y - startY)**2);
+                const segments = 5;
+                for(let i=1; i<segments; i++) {
+                    const pct = i/segments;
+                    const jx = (Math.random()-0.5) * 2;
+                    const jy = (Math.random()-0.5) * 2;
+                    ctx.lineTo(
+                        startX + (targetPos.x - startX)*pct + jx,
+                        startY + (targetPos.y - startY)*pct + jy
+                    );
+                }
+                ctx.lineTo(targetPos.x, targetPos.y); 
+                ctx.stroke();
                 
                 const chargeColor = ent.laserCharge > 1.5 ? '#a5f3fc' : '#06b6d4'; 
                 ctx.strokeStyle = chargeColor;
@@ -296,10 +313,42 @@ export class GameEngine {
   buildTower(gridPos: GridPoint, type: EntityType) { this.actions.buildTower(gridPos, type); }
   upgradeSelectedTower() { this.actions.upgradeSelectedTower(); }
   sellSelectedTower() { this.actions.sellSelectedTower(); }
-  spawnProjectile(source: Tower, target: BaseEnemy) { this.actions.spawnProjectile(source, target); }
+  
+  spawnProjectile(source: Tower, target: BaseEnemy) { 
+      // Calculate Pan based on X position relative to center of screen
+      const screenPos = this.getScreenPos(source.gridPos.x, source.gridPos.y);
+      const centerX = this.renderer.width / 2;
+      // Normalize to -1...1 range
+      const pan = Math.max(-1, Math.min(1, (screenPos.x - centerX) / (this.renderer.width / 2)));
+      
+      // Override default audio playShoot to use panning
+      this.audio.core.playBuffer(
+          this.audio.sfx['buffers'].get('shoot'), 
+          this.audio.core.currentTime, 
+          'SFX', 
+          1.2, 
+          1.2, 
+          false, 
+          pan
+      );
+
+      this.actions.spawnProjectile(source, target); 
+  }
 
   // --- VFX DELEGATION ---
-  spawnExplosion(gridPos: Vector2, color: string) { this.vfx.spawnExplosion(gridPos, color); }
+  spawnExplosion(gridPos: Vector2, color: string) { 
+      // Add Panning
+      const screenPos = this.getScreenPos(gridPos.x, gridPos.y);
+      const centerX = this.renderer.width / 2;
+      const pan = Math.max(-1, Math.min(1, (screenPos.x - centerX) / (this.renderer.width / 2)));
+      
+      // Play Audio manually here to add panning
+      // (This overrides the call inside vfx.spawnExplosion if we passed audio control there, but currently audio is called here or in entity)
+      // Actually vfx system doesn't call audio, the entity death usually does.
+      
+      this.vfx.spawnExplosion(gridPos, color); 
+  }
+  
   spawnHitEffect(gridPos: Vector2) { this.vfx.spawnHitEffect(gridPos); }
   spawnBuildEffect(gridPos: Vector2, color?: string) { this.vfx.spawnBuildEffect(gridPos, color); }
   spawnLootEffect(gridPos: Vector2, amount: number) { this.vfx.spawnLootEffect(gridPos, amount); }
